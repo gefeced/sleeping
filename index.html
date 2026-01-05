@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#050814" />
+    <title>Sleep Tracker</title>
+    <link rel="stylesheet" href="scripts/styles.css" />
+  </head>
+  <body data-page="home">
+    <div class="app">
+      <header class="topbar">
+        <div class="topbar__title">
+          <div class="appname">Sleep</div>
+          <div class="subtitle">Manual Tracker</div>
+        </div>
+        <div class="topbar__actions">
+          <nav class="nav" aria-label="Primary navigation">
+            <a class="nav__link is-active" href="index.html">Home</a>
+            <a class="nav__link" href="goals.html">Goals</a>
+            <a class="nav__link" href="schedule.html">Schedule</a>
+            <a class="nav__link" href="analytics.html">Analytics</a>
+          </nav>
+          <button id="infoButton" class="icon-button" type="button" aria-label="About this app" title="About">
+            i
+          </button>
+        </div>
+      </header>
+
+      <main class="content">
+        <section id="homeEmptyStates" class="card empty" hidden>
+          <div id="homeEmptyMessage" class="empty__text">—</div>
+          <div class="empty__action">
+            <a id="homeEmptyAction" class="button button--primary" href="goals.html" role="button">Get started</a>
+          </div>
+        </section>
+
+        <section class="card hero">
+          <div class="hero__time">
+            <div class="label">Current Time</div>
+            <div id="clock" class="clock" aria-live="polite">--:--</div>
+          </div>
+
+          <div class="hero__stats">
+            <div class="stat">
+              <div class="label">Today</div>
+              <div id="todaySummary" class="value">No session yet</div>
+            </div>
+            <div class="stat">
+              <div class="label">Sleep Score</div>
+              <div class="value">
+                <span id="scoreValue" class="score score--neutral">--</span>
+                <span id="scoreLabel" class="muted">—</span>
+              </div>
+            </div>
+            <div class="stat">
+              <div class="label">Streak</div>
+              <div class="value"><span id="streakCount">0</span> days</div>
+            </div>
+          </div>
+
+          <div id="dayStrip" class="day-strip" aria-label="Today indicator"></div>
+        </section>
+
+        <section class="card">
+          <div class="row">
+            <div>
+              <div class="label">Last Night vs Goal</div>
+              <div class="muted">Assigned to your wake-up date</div>
+            </div>
+            <span id="compareBadge" class="badge badge--neutral">—</span>
+          </div>
+          <div class="compare">
+            <div class="compare__item">
+              <div class="label">Goal</div>
+              <div id="compareGoal" class="compare__value">—</div>
+            </div>
+            <div class="compare__item">
+              <div class="label">Last Sleep</div>
+              <div id="compareLast" class="compare__value">—</div>
+            </div>
+            <div class="compare__item">
+              <div class="label">Difference</div>
+              <div id="compareDiff" class="compare__value">—</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="center">
+          <button id="sleepButton" class="sleep-button" type="button">
+            <span class="sleep-button__ring" aria-hidden="true"></span>
+            <span id="sleepButtonText" class="sleep-button__text">Start Sleeping</span>
+            <span id="sleepButtonSubtext" class="sleep-button__subtext">Tap to record</span>
+          </button>
+          <div id="activeHint" class="hint" hidden>
+            Sleeping… started <span id="activeStartTime">--:--</span>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="row">
+            <div>
+              <div class="label">Recent Sleep</div>
+              <div class="muted">Last 14 days</div>
+            </div>
+            <a class="link" href="analytics.html">View analytics</a>
+          </div>
+          <canvas id="miniGraph" class="canvas" width="900" height="260" aria-label="Recent sleep graph"></canvas>
+        </section>
+      </main>
+    </div>
+
+    <script src="scripts/storage.js"></script>
+    <script src="scripts/time.js"></script>
+    <script src="scripts/sleepTracker.js"></script>
+    <script src="scripts/graphs.js"></script>
+    <script src="scripts/ui.js"></script>
+  </body>
+</html>

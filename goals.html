@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#050814" />
+    <title>Sleep Goals</title>
+    <link rel="stylesheet" href="scripts/styles.css" />
+  </head>
+  <body data-page="goals">
+    <div class="app">
+      <header class="topbar">
+        <div class="topbar__title">
+          <div class="appname">Sleep</div>
+          <div class="subtitle">Goals</div>
+        </div>
+        <div class="topbar__actions">
+          <nav class="nav" aria-label="Primary navigation">
+            <a class="nav__link" href="index.html">Home</a>
+            <a class="nav__link is-active" href="goals.html">Goals</a>
+            <a class="nav__link" href="schedule.html">Schedule</a>
+            <a class="nav__link" href="analytics.html">Analytics</a>
+          </nav>
+          <button id="infoButton" class="icon-button" type="button" aria-label="About this app" title="About">
+            i
+          </button>
+        </div>
+      </header>
+
+      <main class="content">
+        <section id="goalsEmptyState" class="card empty" hidden>
+          <div class="empty__text">Set a goal to track your progress.</div>
+          <div class="empty__action">
+            <button id="goalsEmptyAction" class="button button--primary" type="button">Use a simple 8h goal</button>
+          </div>
+        </section>
+
+        <section class="card">
+          <h1 class="h1">Goals</h1>
+          <p class="muted">Keep it simple. Add goal blocks only if you want different targets on different days.</p>
+
+          <details class="session" open>
+            <summary class="session__summary">
+              <div class="session__date">Default Goal</div>
+              <div class="session__meta">
+                <span id="defaultGoalSummary" class="session__duration">—</span>
+              </div>
+            </summary>
+            <div class="session__body">
+              <div class="form-grid">
+                <div class="field">
+                  <label class="label" for="defaultGoalHours">Hours</label>
+                  <input id="defaultGoalHours" class="input" type="number" min="0" max="16" step="1" inputmode="numeric" />
+                </div>
+                <div class="field">
+                  <label class="label" for="defaultGoalMinutes">Minutes</label>
+                  <input id="defaultGoalMinutes" class="input" type="number" min="0" max="59" step="5" inputmode="numeric" />
+                </div>
+              </div>
+              <div class="help">Used when no goal block matches the day.</div>
+            </div>
+          </details>
+        </section>
+
+        <section class="card">
+          <div class="row">
+            <div>
+              <h2 class="h2">Goal Blocks</h2>
+              <div class="muted">Example: a different goal on weekends.</div>
+            </div>
+            <button id="addGoalBlock" class="button button--primary" type="button">Add Block</button>
+          </div>
+          <div id="goalBlocksWarning" class="status" aria-live="polite"></div>
+          <div id="goalBlocks" class="session-list session-list--history" aria-label="Goal blocks"></div>
+        </section>
+
+        <section class="card">
+          <h2 class="h2">Consistency</h2>
+          <div class="muted">Used to score timing consistency and streak qualification.</div>
+          <div class="field" style="margin-top:10px">
+            <label class="label" for="toleranceRange">Tolerance</label>
+            <input id="toleranceRange" class="input" type="range" min="0" max="180" step="5" />
+            <div class="row" style="margin-top:8px">
+              <div class="muted">Current: <span id="toleranceValue">—</span> minutes</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="row">
+            <button id="saveGoals" class="button button--primary" type="button">Save</button>
+            <button id="resetGoals" class="button button--tiny button--ghost" type="button">Reset</button>
+            <div id="goalsStatus" class="status" role="status" aria-live="polite"></div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="scripts/storage.js"></script>
+    <script src="scripts/time.js"></script>
+    <script src="scripts/sleepTracker.js"></script>
+    <script src="scripts/goals.js"></script>
+    <script src="scripts/ui.js"></script>
+  </body>
+</html>
