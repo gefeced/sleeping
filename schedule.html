@@ -8,26 +8,29 @@
     <link rel="stylesheet" href="scripts/styles.css" />
   </head>
   <body data-page="schedule">
-    <div class="app">
-      <header class="topbar">
-        <div class="topbar__title">
-          <div class="appname">Sleep</div>
-          <div class="subtitle">Schedule</div>
-        </div>
-        <div class="topbar__actions">
-          <nav class="nav" aria-label="Primary navigation">
-            <a class="nav__link" href="index.html">Home</a>
-            <a class="nav__link" href="goals.html">Goals</a>
-            <a class="nav__link is-active" href="schedule.html">Schedule</a>
-            <a class="nav__link" href="analytics.html">Analytics</a>
-          </nav>
-          <button id="infoButton" class="icon-button" type="button" aria-label="About this app" title="About">
-            i
-          </button>
-        </div>
-      </header>
+    <div id="background-layer"></div>
+    <div id="app-container">
+      <div class="app">
+        <header class="topbar">
+          <div class="topbar__title">
+            <div class="appname">Sleep</div>
+            <div class="subtitle">Schedule</div>
+          </div>
+          <div class="topbar__actions">
+            <nav class="nav" aria-label="Primary navigation">
+              <a class="nav__link" href="index.html">Home</a>
+              <a class="nav__link" href="goals.html">Goals</a>
+              <a class="nav__link is-active" href="schedule.html">Schedule</a>
+              <a class="nav__link" href="analytics.html">Analytics</a>
+              <a class="nav__link" href="history.html">History</a>
+            </nav>
+            <button id="infoButton" class="icon-button" type="button" aria-label="About this app" title="About">
+              i
+            </button>
+          </div>
+        </header>
 
-      <main class="content">
+        <main class="content">
         <section id="scheduleEmptyState" class="card empty" hidden>
           <div class="empty__text">Your schedule helps the app score consistency.</div>
           <div class="empty__action">
@@ -138,7 +141,8 @@
             <div id="scheduleStatus" class="status" role="status" aria-live="polite"></div>
           </div>
         </section>
-      </main>
+        </main>
+      </div>
     </div>
 
     <script src="scripts/storage.js"></script>

@@ -471,31 +471,82 @@
 
     SleepApp.graphs.renderAnalyticsSummary(el("analyticsSummary"));
 
-    const isHistory = view === "history";
-    if (canvas) canvas.hidden = isHistory;
-    if (legend) legend.hidden = isHistory;
-
-    if (isHistory) {
-      if (sessionsTitle) sessionsTitle.textContent = "History";
-      if (sessionsSubtitle) sessionsSubtitle.textContent = "Tap a session to edit or delete.";
-      if (emptyState) emptyState.hidden = sessions.length !== 0;
-      SleepApp.graphs.renderSessionList(el("sessionList"), { limit: null });
-      return;
-    }
-
     if (sessionsTitle) sessionsTitle.textContent = "Sessions";
     if (sessionsSubtitle) sessionsSubtitle.textContent = "Most recent sessions (tap to edit).";
     if (emptyState) emptyState.hidden = true;
+
+    if (canvas) canvas.hidden = false;
+    if (legend) legend.hidden = false;
 
     if (canvas) SleepApp.graphs.renderAnalytics(canvas, view);
     SleepApp.graphs.renderLegend(view, legend);
     SleepApp.graphs.renderSessionList(el("sessionList"), { limit: 20 });
   }
 
+  function renderHistoryPage(selectedId = null) {
+    const list = el("historyList");
+    const details = el("historyDetails");
+    const empty = el("historyEmptyState");
+    const summary = el("historySummary");
+    const editBtn = el("historyEdit");
+    const delBtn = el("historyDelete");
+    const backBtn = el("historyBack");
+
+    if (!list || !details || !empty || !editBtn || !delBtn) return;
+
+    const store = SleepApp.storage;
+    const sessions = store.getSessions().filter((s) => s?.start && s?.end);
+    empty.hidden = sessions.length !== 0;
+
+    if (summary) SleepApp.graphs.renderAnalyticsSummary(summary);
+
+    SleepApp.graphs.renderSessionList(list, { limit: null });
+
+    const selected = selectedId ? sessions.find((s) => s.id === selectedId) : null;
+    const hasSelected = Boolean(selected);
+    editBtn.disabled = !hasSelected;
+    delBtn.disabled = !hasSelected;
+
+    if (!hasSelected) {
+      details.innerHTML = `
+        <div class="kv__k">Tip</div><div class="kv__v">Tap a session above to view details.</div>
+      `;
+      return;
+    }
+
+    const goals = store.getGoals();
+    const schedule = store.getSchedule();
+    const endKey = SleepApp.sleepTracker.getSessionDateKey(selected) || "—";
+    const goalMinutes = SleepApp.sleepTracker.getGoalMinutesForDate(new Date(selected.end), goals);
+    const diff = Math.round(Number(selected.durationMinutes) - goalMinutes);
+    const consistency = SleepApp.sleepTracker.computeConsistencyScore(selected, schedule, goals);
+
+    const score = Number.isFinite(selected.score) ? Math.round(selected.score) : null;
+    const scoreLabel = score === null ? "—" : score >= 80 ? "Great" : score >= 65 ? "Okay" : "Poor";
+
+    details.innerHTML = `
+      <div class="kv__k">Date</div><div class="kv__v">${endKey}</div>
+      <div class="kv__k">Start</div><div class="kv__v">${SleepApp.time.formatTimeFromISO(selected.start)} (${selected.start})</div>
+      <div class="kv__k">End</div><div class="kv__v">${SleepApp.time.formatTimeFromISO(selected.end)} (${selected.end})</div>
+      <div class="kv__k">Duration</div><div class="kv__v">${SleepApp.time.formatDuration(Number(selected.durationMs))}</div>
+      <div class="kv__k">Goal</div><div class="kv__v">${formatMinutesAsHM(goalMinutes)} (${diff >= 0 ? "+" : ""}${diff}m)</div>
+      <div class="kv__k">Consistency</div><div class="kv__v">${consistency === null ? "—" : `${consistency}/100`}</div>
+      <div class="kv__k">Score</div><div class="kv__v">${score === null ? "—" : `${score}/100`} • ${scoreLabel}</div>
+    `;
+
+    const url = new URL(window.location.href);
+    url.searchParams.set("id", selected.id);
+    window.history.replaceState(null, "", url.toString());
+
+    // Mobile: show back button if list is scrolled off-screen.
+    if (backBtn) backBtn.hidden = false;
+  }
+
   function attachAnalyticsHandlers() {
     const store = SleepApp.storage;
     const ui = store.getUI();
     let view = ui.analyticsView || "daily";
+    if (!["daily", "weekly", "monthly"].includes(view)) view = "daily";
 
     const segmented = document.querySelector(".segmented");
     if (!segmented) return;
@@ -646,6 +697,158 @@
     setView(view);
   }
 
+  function attachHistoryHandlers() {
+    const list = el("historyList");
+    const edit = el("historyEdit");
+    const del = el("historyDelete");
+    const back = el("historyBack");
+    if (!list || !edit || !del) return;
+
+    const url = new URL(window.location.href);
+    let selectedId = url.searchParams.get("id");
+
+    function pick(id) {
+      selectedId = id;
+      renderHistoryPage(selectedId);
+    }
+
+    list.addEventListener("click", (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      const button = target.closest("button[data-session-id]");
+      if (!(button instanceof HTMLElement)) return;
+      const sessionId = button.dataset.sessionId;
+      if (!sessionId) return;
+      pick(sessionId);
+
+      // On small screens, scroll details into view.
+      const detailsCard = el("historyDetailsCard");
+      if (detailsCard) detailsCard.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+
+    if (back) {
+      back.addEventListener("click", () => {
+        const top = el("historyList");
+        if (top) top.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    }
+
+    edit.addEventListener("click", async () => {
+      if (!selectedId) return;
+      const sessions = SleepApp.storage.getSessions();
+      const session = sessions.find((s) => s?.id === selectedId);
+      if (!session?.start || !session?.end) return;
+
+      // Reuse the analytics edit flow via a small inline modal.
+      function isoToLocalInputValue(iso) {
+        const d = new Date(iso);
+        if (Number.isNaN(d.getTime())) return "";
+        const yyyy = d.getFullYear();
+        const mm = SleepApp.time.pad2(d.getMonth() + 1);
+        const dd = SleepApp.time.pad2(d.getDate());
+        const hh = SleepApp.time.pad2(d.getHours());
+        const min = SleepApp.time.pad2(d.getMinutes());
+        return `${yyyy}-${mm}-${dd}T${hh}:${min}`;
+      }
+      function localInputValueToISO(value) {
+        const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(String(value || ""));
+        if (!match) return null;
+        const year = Number(match[1]);
+        const month = Number(match[2]) - 1;
+        const day = Number(match[3]);
+        const hour = Number(match[4]);
+        const minute = Number(match[5]);
+        const d = new Date(year, month, day, hour, minute, 0, 0);
+        if (Number.isNaN(d.getTime())) return null;
+        return d.toISOString();
+      }
+
+      const wrap = document.createElement("div");
+      wrap.className = "field";
+
+      const startField = document.createElement("div");
+      startField.className = "field";
+      const startLabel = document.createElement("label");
+      startLabel.className = "label";
+      startLabel.textContent = "Start";
+      const startInput = document.createElement("input");
+      startInput.className = "input";
+      startInput.type = "datetime-local";
+      startInput.value = isoToLocalInputValue(session.start);
+      startField.append(startLabel, startInput);
+
+      const endField = document.createElement("div");
+      endField.className = "field";
+      const endLabel = document.createElement("label");
+      endLabel.className = "label";
+      endLabel.textContent = "End";
+      const endInput = document.createElement("input");
+      endInput.className = "input";
+      endInput.type = "datetime-local";
+      endInput.value = isoToLocalInputValue(session.end);
+      endField.append(endLabel, endInput);
+
+      wrap.append(startField, endField);
+
+      const result = await showModal({
+        title: "Edit Session",
+        body: wrap,
+        actions: [
+          { label: "Cancel", value: { action: "cancel" }, variant: "ghost" },
+          {
+            label: "Save",
+            variant: "primary",
+            value: () => ({
+              action: "save",
+              startISO: localInputValueToISO(startInput.value),
+              endISO: localInputValueToISO(endInput.value),
+            }),
+          },
+        ],
+      });
+
+      if (!result || result.action !== "save") return;
+      if (!result.startISO || !result.endISO) return;
+
+      const update = SleepApp.sleepTracker.updateSessionTimes(selectedId, { startISO: result.startISO, endISO: result.endISO });
+      if (!update.ok) {
+        await showModal({
+          title: "Couldn’t save",
+          body: update.reason || "Please check the times and try again.",
+          actions: [{ label: "Close", value: "close", variant: "primary" }],
+        });
+      } else {
+        renderHistoryPage(selectedId);
+      }
+    });
+
+    del.addEventListener("click", async () => {
+      if (!selectedId) return;
+      const confirmDelete = await showModal({
+        title: "Delete session?",
+        body: "This will remove the session and update streaks/scores/graphs.",
+        actions: [
+          { label: "Cancel", value: false, variant: "ghost" },
+          { label: "Delete", value: true, variant: "primary" },
+        ],
+      });
+      if (!confirmDelete) return;
+      SleepApp.sleepTracker.deleteSession(selectedId);
+      selectedId = null;
+      const url = new URL(window.location.href);
+      url.searchParams.delete("id");
+      window.history.replaceState(null, "", url.toString());
+      renderHistoryPage(null);
+    });
+
+    // Initial render
+    renderHistoryPage(selectedId);
+
+    window.addEventListener("sleepapp:sessionsChanged", () => renderHistoryPage(selectedId));
+    window.addEventListener("sleepapp:goalsChanged", () => renderHistoryPage(selectedId));
+    window.addEventListener("sleepapp:scheduleChanged", () => renderHistoryPage(selectedId));
+  }
+
   function init() {
     const page = document.body?.dataset?.page;
     if (!page) return;
@@ -712,6 +915,11 @@
         const ui = SleepApp.storage.getUI();
         renderAnalyticsPage(ui.analyticsView || "daily");
       });
+      return;
+    }
+
+    if (page === "history") {
+      attachHistoryHandlers();
     }
   }
 

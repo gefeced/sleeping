@@ -8,26 +8,29 @@
     <link rel="stylesheet" href="scripts/styles.css" />
   </head>
   <body data-page="analytics">
-    <div class="app">
-      <header class="topbar">
-        <div class="topbar__title">
-          <div class="appname">Sleep</div>
-          <div class="subtitle">Analytics</div>
-        </div>
-        <div class="topbar__actions">
-          <nav class="nav" aria-label="Primary navigation">
-            <a class="nav__link" href="index.html">Home</a>
-            <a class="nav__link" href="goals.html">Goals</a>
-            <a class="nav__link" href="schedule.html">Schedule</a>
-            <a class="nav__link is-active" href="analytics.html">Analytics</a>
-          </nav>
-          <button id="infoButton" class="icon-button" type="button" aria-label="About this app" title="About">
-            i
-          </button>
-        </div>
-      </header>
+    <div id="background-layer"></div>
+    <div id="app-container">
+      <div class="app">
+        <header class="topbar">
+          <div class="topbar__title">
+            <div class="appname">Sleep</div>
+            <div class="subtitle">Analytics</div>
+          </div>
+          <div class="topbar__actions">
+            <nav class="nav" aria-label="Primary navigation">
+              <a class="nav__link" href="index.html">Home</a>
+              <a class="nav__link" href="goals.html">Goals</a>
+              <a class="nav__link" href="schedule.html">Schedule</a>
+              <a class="nav__link is-active" href="analytics.html">Analytics</a>
+              <a class="nav__link" href="history.html">History</a>
+            </nav>
+            <button id="infoButton" class="icon-button" type="button" aria-label="About this app" title="About">
+              i
+            </button>
+          </div>
+        </header>
 
-      <main class="content">
+        <main class="content">
         <section class="card">
           <div class="row">
             <div>
@@ -41,7 +44,6 @@
             <button class="segmented__btn is-active" type="button" data-view="daily" role="tab">Daily</button>
             <button class="segmented__btn" type="button" data-view="weekly" role="tab">Weekly</button>
             <button class="segmented__btn" type="button" data-view="monthly" role="tab">Monthly</button>
-            <button class="segmented__btn" type="button" data-view="history" role="tab">History</button>
           </div>
 
           <canvas id="analyticsCanvas" class="canvas canvas--tall" width="1000" height="520" aria-label="Sleep analytics graph"></canvas>
@@ -59,7 +61,8 @@
           </div>
           <div id="sessionList" class="session-list" aria-label="Sleep sessions list"></div>
         </section>
-      </main>
+        </main>
+      </div>
     </div>
 
     <script src="scripts/storage.js"></script>

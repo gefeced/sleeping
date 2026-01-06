@@ -77,6 +77,29 @@
     return null;
   }
 
+  function computeConsistencyScore(session, scheduleState, goals) {
+    // Returns 0–100 (higher is more consistent with schedule).
+    if (!session?.start || !session?.end) return null;
+    const startDate = new Date(session.start);
+    const endDate = new Date(session.end);
+    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) return null;
+
+    const scheduleForDay = pickScheduleForDate(scheduleState, endDate);
+    const schedule = normalizeSchedule(scheduleForDay);
+    if (!schedule) return null;
+
+    const toleranceMinutes = Math.max(0, Number(goals?.toleranceMinutes ?? 45));
+    const startMinutes = startDate.getHours() * 60 + startDate.getMinutes();
+    const endMinutes = endDate.getHours() * 60 + endDate.getMinutes();
+    const bedDiff = Math.abs(SleepApp.time.diffMinutesWrap(schedule.bedtimeMinutes, startMinutes));
+    const wakeDiff = Math.abs(SleepApp.time.diffMinutesWrap(schedule.wakeMinutes, endMinutes));
+    const avgDiff = (bedDiff + wakeDiff) / 2;
+
+    if (avgDiff <= toleranceMinutes) return 100;
+    const t = SleepApp.time.clamp((avgDiff - toleranceMinutes) / 180, 0, 1);
+    return Math.round(100 - t * 60);
+  }
+
   function computeVariabilityPenalty(recentSessions) {
     const durations = recentSessions
       .map((s) => s.durationMinutes)
@@ -488,6 +511,7 @@
     getSessionDateKey,
     computeSessionTimes,
     computeScore,
+    computeConsistencyScore,
     startSleeping,
     buildProposedSessionFromActive,
     saveCompletedSession,
