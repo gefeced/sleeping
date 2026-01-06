@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#050814" />
+    <title>Sleep Schedule</title>
+    <link rel="stylesheet" href="scripts/styles.css" />
+  </head>
+  <body data-page="schedule">
+    <div id="background-layer"></div>
+    <div id="app-container">
+      <div class="app">
+        <header class="topbar">
+          <div class="topbar__title">
+            <div class="appname">Sleep</div>
+            <div class="subtitle">Schedule</div>
+          </div>
+          <div class="topbar__actions">
+            <nav class="nav" aria-label="Primary navigation">
+              <a class="nav__link" href="index.html">Home</a>
+              <a class="nav__link" href="goals.html">Goals</a>
+              <a class="nav__link is-active" href="schedule.html">Schedule</a>
+              <a class="nav__link" href="analytics.html">Analytics</a>
+              <a class="nav__link" href="history.html">History</a>
+            </nav>
+            <button id="infoButton" class="icon-button" type="button" aria-label="About this app" title="About">
+              i
+            </button>
+          </div>
+        </header>
+
+        <main class="content">
+        <section id="scheduleEmptyState" class="card empty" hidden>
+          <div class="empty__text">Your schedule helps the app score consistency.</div>
+          <div class="empty__action">
+            <button id="createWeekdayWeekend" class="button button--primary" type="button">Create Weekday + Weekend</button>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="row">
+            <div>
+              <h1 class="h1">Schedules</h1>
+              <div class="muted">All schedules apply automatically based on the days you select (ex: Weekdays + Weekend).</div>
+            </div>
+            <button id="addSchedule" class="button button--primary" type="button">Add Schedule</button>
+          </div>
+
+          <div class="form-grid">
+            <div class="field">
+              <label class="label" for="scheduleSelect">Edit Schedule</label>
+              <select id="scheduleSelect" class="input"></select>
+            </div>
+            <div class="field">
+              <label class="label" for="scheduleName">Name</label>
+              <input id="scheduleName" class="input" type="text" placeholder="Schedule name" maxlength="28" />
+            </div>
+          </div>
+
+          <div class="row row--left">
+            <button id="duplicateSchedule" class="button button--ghost" type="button">Duplicate</button>
+            <button id="deleteSchedule" class="button button--ghost" type="button">Delete</button>
+            <div id="overlapWarning" class="status" aria-live="polite"></div>
+          </div>
+        </section>
+
+        <section class="card">
+          <h1 class="h1">Active Days</h1>
+          <p class="muted">Choose which days this schedule applies to.</p>
+          <div id="dayChips" class="chips" aria-label="Active days selector"></div>
+        </section>
+
+        <section class="card">
+          <div class="row row--tight">
+            <div>
+              <h2 class="h2">Bedtime Window</h2>
+              <div class="muted">Drag the handles or use the time inputs.</div>
+            </div>
+            <div class="pill">
+              <span class="pill__dot"></span>
+              <span id="dialDuration" class="pill__text">—</span>
+            </div>
+          </div>
+
+          <div class="dial-wrap">
+            <div id="timeDial" class="time-dial" aria-label="Circular time selector">
+              <svg class="time-dial__svg" viewBox="0 0 200 200" aria-hidden="true">
+                <defs>
+                  <filter id="glow">
+                    <feGaussianBlur stdDeviation="3.4" result="blur" />
+                    <feColorMatrix
+                      in="blur"
+                      type="matrix"
+                      values="0 0 0 0 0.15  0 0 0 0 0.55  0 0 0 0 1  0 0 0 0.95 0"
+                      result="blue"
+                    />
+                    <feMerge>
+                      <feMergeNode in="blue" />
+                      <feMergeNode in="SourceGraphic" />
+                    </feMerge>
+                  </filter>
+                </defs>
+                <circle class="time-dial__track" cx="100" cy="100" r="74" />
+                <path id="sleepArc" class="time-dial__arc" d="" />
+              </svg>
+              <div id="handleBed" class="time-dial__handle" role="slider" aria-label="Bedtime"></div>
+              <div id="handleWake" class="time-dial__handle time-dial__handle--alt" role="slider" aria-label="Wake time"></div>
+              <div class="time-dial__center">
+                <div class="timepair">
+                  <div class="timepair__item">
+                    <div class="label">Bed</div>
+                    <div id="bedText" class="timepair__time">--:--</div>
+                  </div>
+                  <div class="timepair__sep"></div>
+                  <div class="timepair__item">
+                    <div class="label">Wake</div>
+                    <div id="wakeText" class="timepair__time">--:--</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-grid">
+            <div class="field">
+              <label class="label" for="bedtimeInput">Bedtime</label>
+              <input id="bedtimeInput" class="input" type="time" />
+            </div>
+            <div class="field">
+              <label class="label" for="wakeInput">Wake</label>
+              <input id="wakeInput" class="input" type="time" />
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="row">
+            <button id="saveSchedule" class="button button--primary" type="button">Save Schedule</button>
+            <button id="resetSchedule" class="button button--ghost" type="button">Reset</button>
+            <div id="scheduleStatus" class="status" role="status" aria-live="polite"></div>
+          </div>
+        </section>
+        </main>
+      </div>
+    </div>
+
+    <script src="scripts/storage.js"></script>
+    <script src="scripts/time.js"></script>
+    <script src="scripts/sleepTracker.js"></script>
+    <script src="scripts/schedule.js"></script>
+    <script src="scripts/ui.js"></script>
+  </body>
+</html>
