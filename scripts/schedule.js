@@ -321,11 +321,43 @@
     }
 
     let dragging = null; // "bed" | "wake"
+    let pendingDrag = null; // { pointerId, startX, startY, kind, handleEl }
+    let activeHandleEl = null;
+    const isCoarsePointer = Boolean(window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
+    const DRAG_ACTIVATION_DISTANCE_PX = 10;
+    const VERTICAL_SCROLL_CANCEL_RATIO = 1.25;
+
+    // Mobile-only subtle haptics (optional).
+    function subtleHapticTap(ms = 10) {
+      if (!isCoarsePointer) return;
+      if (typeof navigator === "undefined" || typeof navigator.vibrate !== "function") return;
+      try {
+        navigator.vibrate(Math.max(1, Math.round(Number(ms) || 10)));
+      } catch {
+        // no-op
+      }
+    }
 
     function onPointerDown(event) {
       if (!(event instanceof PointerEvent)) return;
-      event.preventDefault();
+      if (event.pointerType === "mouse" && event.button !== 0) return;
 
+      // Mobile gesture handling:
+      // - Only start tracking if the user touches a handle (prevents accidental drags while scrolling).
+      // - Wait for a small movement threshold before confirming drag (avoids scroll-locking).
+      // - If the initial movement is mostly vertical, cancel drag so the page can scroll.
+      if (isCoarsePointer) {
+        if (!event.isPrimary) return;
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) return;
+        const handle = target.closest(".time-dial__handle");
+        if (!(handle instanceof HTMLElement)) return;
+        const kind = handle === handleWake ? "wake" : "bed";
+        pendingDrag = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, kind, handleEl: handle };
+        return;
+      }
+
+      event.preventDefault();
       const closest = findClosestHandle(event.clientX, event.clientY, [handleBed, handleWake]);
       dragging = closest === handleWake ? "wake" : "bed";
       dial.setPointerCapture(event.pointerId);
@@ -335,6 +367,32 @@
 
     function onPointerMove(event) {
       if (!(event instanceof PointerEvent)) return;
+      if (!dragging && pendingDrag && pendingDrag.pointerId === event.pointerId) {
+        const dx = event.clientX - pendingDrag.startX;
+        const dy = event.clientY - pendingDrag.startY;
+        const dist = Math.hypot(dx, dy);
+        if (dist < DRAG_ACTIVATION_DISTANCE_PX) return;
+
+        if (Math.abs(dy) > Math.abs(dx) * VERTICAL_SCROLL_CANCEL_RATIO) {
+          pendingDrag = null;
+          return;
+        }
+
+        event.preventDefault();
+        dragging = pendingDrag.kind;
+        activeHandleEl = pendingDrag.handleEl || null;
+        pendingDrag = null;
+        subtleHapticTap(10);
+        dial.classList.add("is-dragging");
+        dial.style.touchAction = "none";
+        if (activeHandleEl) activeHandleEl.style.touchAction = "none";
+        try {
+          dial.setPointerCapture(event.pointerId);
+        } catch {
+          // no-op
+        }
+      }
+
       if (!dragging) return;
 
       const minutes = snapMinutes(minutesFromPointer(event), 5);
@@ -345,9 +403,13 @@
 
     function onPointerUp(event) {
       if (!(event instanceof PointerEvent)) return;
+      if (pendingDrag && pendingDrag.pointerId === event.pointerId) pendingDrag = null;
       if (!dragging) return;
       dragging = null;
       dial.classList.remove("is-dragging");
+      dial.style.touchAction = "";
+      if (activeHandleEl) activeHandleEl.style.touchAction = "";
+      activeHandleEl = null;
       try {
         dial.releasePointerCapture(event.pointerId);
       } catch {

@@ -229,11 +229,12 @@
     });
   }
 
-  function renderAnalytics(canvas, view) {
+  function renderAnalytics(canvas, view, metric = null) {
     const sessions = SleepApp.storage.getSessions();
     const goals = SleepApp.storage.getGoals();
     const schedule = SleepApp.storage.getSchedule();
     const t = theme();
+    const safeMetric = metric === "consistency" ? "consistency" : "duration";
 
     withHiDPIScaling(canvas, (ctx, width, height) => {
       ctx.clearRect(0, 0, width, height);
@@ -262,7 +263,6 @@
       }
 
       if (view === "weekly") {
-        // Weekly consistency: lower avg diff -> higher bar.
         const byWeek = new Map();
         for (const s of sessions) {
           if (!s?.end) continue;
@@ -275,12 +275,23 @@
 
         const weeks = [...byWeek.keys()].sort().slice(-12);
         const items = weeks.map((key) => {
-          const avgDiff = computeConsistencyMinutes(byWeek.get(key) || [], schedule);
-          const value = avgDiff === null ? 0 : Math.round(SleepApp.time.clamp(100 - (avgDiff / 180) * 100, 0, 100));
-          return { label: key.slice(5), value, color: t.blue };
+          const arr = byWeek.get(key) || [];
+          if (safeMetric === "consistency") {
+            // Consistency: lower avg diff -> higher score.
+            const avgDiff = computeConsistencyMinutes(arr, schedule);
+            const value = avgDiff === null ? 0 : Math.round(SleepApp.time.clamp(100 - (avgDiff / 180) * 100, 0, 100));
+            return { label: key.slice(5), value, color: t.blue };
+          }
+          const values = arr.map((s) => Number(s.durationMinutes)).filter((m) => Number.isFinite(m) && m > 0);
+          const avg = values.length ? values.reduce((a, b) => a + b, 0) / values.length : 0;
+          return { label: key.slice(5), value: avg, color: t.blue };
         });
 
-        drawBars(ctx, width, height, items, { maxY: 100, targetValue: 85 });
+        if (safeMetric === "consistency") drawBars(ctx, width, height, items, { maxY: 100, targetValue: 85 });
+        else {
+          const target = goals?.defaultGoalMinutes || 8 * 60;
+          drawBars(ctx, width, height, items, { maxY: Math.max(target * 1.3, 10), targetValue: target });
+        }
         return;
       }
 
@@ -298,19 +309,29 @@
       const months = [...byMonth.keys()].sort().slice(-12);
       const items = months.map((key) => {
         const arr = byMonth.get(key) || [];
+        if (safeMetric === "consistency") {
+          const avgDiff = computeConsistencyMinutes(arr, schedule);
+          const value = avgDiff === null ? 0 : Math.round(SleepApp.time.clamp(100 - (avgDiff / 180) * 100, 0, 100));
+          return { label: key.slice(5), value, color: t.blue };
+        }
         const values = arr.map((s) => Number(s.durationMinutes)).filter((m) => Number.isFinite(m) && m > 0);
         const avg = values.length ? values.reduce((a, b) => a + b, 0) / values.length : 0;
         return { label: key.slice(5), value: avg, color: t.blue };
       });
-      const target = goals?.defaultGoalMinutes || 8 * 60;
-      drawBars(ctx, width, height, items, { maxY: Math.max(target * 1.3, 10), targetValue: target });
+
+      if (safeMetric === "consistency") drawBars(ctx, width, height, items, { maxY: 100, targetValue: 85 });
+      else {
+        const target = goals?.defaultGoalMinutes || 8 * 60;
+        drawBars(ctx, width, height, items, { maxY: Math.max(target * 1.3, 10), targetValue: target });
+      }
     });
   }
 
-  function renderLegend(view, node) {
+  function renderLegend(view, metric, node) {
     if (!node) return;
-    if (view === "weekly") node.innerHTML = `<span class="legend__swatch"></span>Consistency (higher is better)`;
-    else node.innerHTML = `<span class="legend__swatch"></span>Duration`;
+    const safeMetric = metric === "consistency" ? "consistency" : "duration";
+    if (safeMetric === "consistency") node.innerHTML = `<span class="legend__swatch"></span>Consistency (higher is better)`;
+    else node.innerHTML = `<span class="legend__swatch"></span>${view === "daily" ? "Duration" : "Avg duration"}`;
   }
 
   function renderAnalyticsSummary(node) {

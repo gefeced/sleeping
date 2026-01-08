@@ -646,11 +646,12 @@ input[type="range"].input {
 .dial-wrap {
   display: grid;
   place-items: center;
+  width: 100%;
   padding: 12px 0 4px;
 }
 
 .time-dial {
-  width: min(360px, 86vw);
+  width: min(360px, 100%);
   aspect-ratio: 1 / 1;
   position: relative;
   border-radius: 999px;
@@ -658,7 +659,7 @@ input[type="range"].input {
     rgba(255, 255, 255, 0.02);
   border: 1px solid rgba(135, 175, 255, 0.12);
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.14), 0 0 50px rgba(95, 170, 255, 0.08);
-  touch-action: none;
+  touch-action: pan-y;
 }
 
 .time-dial.is-dragging {
@@ -691,9 +692,17 @@ input[type="range"].input {
   border: 1px solid rgba(0, 0, 0, 0.25);
   box-shadow: 0 0 24px rgba(95, 170, 255, 0.28);
   transform: translate(-50%, -50%);
+  touch-action: pan-y;
 }
 .time-dial__handle--alt {
   background: rgba(235, 245, 255, 0.92);
+}
+
+@media (pointer: coarse) {
+  .time-dial__handle {
+    width: 16px;
+    height: 16px;
+  }
 }
 
 .time-dial__center {
@@ -795,6 +804,62 @@ input[type="range"].input {
   box-shadow: 0 0 20px rgba(95, 170, 255, 0.2);
 }
 
+.metric-toggle {
+  margin-top: 10px;
+  display: inline-flex;
+  gap: 14px;
+  align-items: center;
+  user-select: none;
+}
+.metric-toggle__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(135, 175, 255, 0.12);
+  background: rgba(0, 0, 0, 0.12);
+  cursor: pointer;
+  min-height: 38px;
+  touch-action: manipulation;
+}
+.metric-toggle__input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.metric-toggle__box {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  border: 1px solid rgba(135, 175, 255, 0.24);
+  background: rgba(255, 255, 255, 0.03);
+  position: relative;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.16);
+}
+.metric-toggle__text {
+  font-size: 13px;
+  color: var(--muted);
+}
+.metric-toggle__input:checked + .metric-toggle__box {
+  border-color: rgba(95, 170, 255, 0.32);
+  background: rgba(95, 170, 255, 0.18);
+}
+.metric-toggle__input:checked + .metric-toggle__box::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 6px;
+  height: 10px;
+  border: solid rgba(170, 225, 255, 0.95);
+  border-width: 0 2px 2px 0;
+  transform: translate(-50%, -60%) rotate(45deg);
+}
+.metric-toggle__input:checked ~ .metric-toggle__text {
+  color: rgba(235, 245, 255, 0.9);
+}
+
 .session-list {
   margin-top: 12px;
   display: grid;
@@ -871,6 +936,20 @@ input[type="range"].input {
 .modal-root[hidden] {
   display: none;
 }
+
+/* Info/About modal should behave like a centered overlay on all devices. */
+.modal-root[data-kind="info"] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+body.is-info-modal-open {
+  overflow: hidden;
+}
+body.is-info-modal-open #app-container {
+  pointer-events: none;
+}
+
 .modal-backdrop {
   position: absolute;
   inset: 0;
@@ -911,6 +990,68 @@ input[type="range"].input {
   min-width: 120px;
 }
 
+/* Minimal About content helpers (Info modal only). */
+.about-brand {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.about-brand__name {
+  font-weight: 760;
+  font-size: 14px;
+  color: rgba(235, 245, 255, 0.92);
+}
+.about-brand__version {
+  font-size: 12px;
+  color: var(--muted);
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(135, 175, 255, 0.14);
+  background: rgba(0, 0, 0, 0.12);
+}
+
+/* Collapsible Changelog: smooth, subtle expansion without turning the modal into a sheet. */
+.about-collapse__btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid rgba(135, 175, 255, 0.12);
+  background: rgba(0, 0, 0, 0.12);
+  color: rgba(235, 245, 255, 0.9);
+  padding: 10px 12px;
+  border-radius: 14px;
+  cursor: pointer;
+}
+.about-collapse__btn::after {
+  content: "▾";
+  color: var(--muted);
+  transform: rotate(-90deg);
+  transition: transform 180ms ease;
+}
+.about-collapse.is-open .about-collapse__btn::after {
+  transform: rotate(0deg);
+}
+.about-collapse__content {
+  margin-top: 0;
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition: grid-template-rows 200ms ease, opacity 200ms ease, margin-top 200ms ease;
+}
+.about-collapse.is-open .about-collapse__content {
+  margin-top: 10px;
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+.about-collapse__inner {
+  overflow: hidden;
+  color: rgba(235, 245, 255, 0.84);
+  font-size: 14px;
+  line-height: 1.35;
+}
+
 @media (max-width: 640px) {
   .modal-root {
     place-items: end center;
@@ -920,6 +1061,10 @@ input[type="range"].input {
     border-bottom-left-radius: 0;
     border-bottom-right-radius: 0;
     max-height: 82vh;
+  }
+  .modal-root[data-kind="info"] .modal {
+    border-bottom-left-radius: 22px;
+    border-bottom-right-radius: 22px;
   }
   .compare {
     grid-template-columns: 1fr;

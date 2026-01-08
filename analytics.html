@@ -40,15 +40,28 @@
             <div id="analyticsSummary" class="pill pill--wide">—</div>
           </div>
 
-          <div class="segmented" role="tablist" aria-label="Analytics view toggle">
-            <button class="segmented__btn is-active" type="button" data-view="daily" role="tab">Daily</button>
-            <button class="segmented__btn" type="button" data-view="weekly" role="tab">Weekly</button>
-            <button class="segmented__btn" type="button" data-view="monthly" role="tab">Monthly</button>
-          </div>
+	          <div class="segmented" role="tablist" aria-label="Analytics view toggle">
+	            <button class="segmented__btn is-active" type="button" data-view="daily" role="tab">Daily</button>
+	            <button class="segmented__btn" type="button" data-view="weekly" role="tab">Weekly</button>
+	            <button class="segmented__btn" type="button" data-view="monthly" role="tab">Monthly</button>
+	          </div>
 
-          <canvas id="analyticsCanvas" class="canvas canvas--tall" width="1000" height="520" aria-label="Sleep analytics graph"></canvas>
-          <div id="analyticsLegend" class="legend" aria-hidden="true"></div>
-        </section>
+	          <div id="analyticsMetricToggle" class="metric-toggle" role="group" aria-label="Graph metric" hidden>
+	            <label class="metric-toggle__item">
+	              <input class="metric-toggle__input" type="radio" name="analyticsMetric" value="duration" />
+	              <span class="metric-toggle__box" aria-hidden="true"></span>
+	              <span class="metric-toggle__text">Duration</span>
+	            </label>
+	            <label class="metric-toggle__item">
+	              <input class="metric-toggle__input" type="radio" name="analyticsMetric" value="consistency" />
+	              <span class="metric-toggle__box" aria-hidden="true"></span>
+	              <span class="metric-toggle__text">Consistency</span>
+	            </label>
+	          </div>
+
+	          <canvas id="analyticsCanvas" class="canvas canvas--tall" width="1000" height="520" aria-label="Sleep analytics graph"></canvas>
+	          <div id="analyticsLegend" class="legend" aria-hidden="true"></div>
+	        </section>
 
         <section class="card">
           <h2 id="sessionsTitle" class="h2">Sessions</h2>

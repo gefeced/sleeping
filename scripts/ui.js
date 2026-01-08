@@ -11,6 +11,30 @@
     return document.getElementById(id);
   }
 
+  function isCoarsePointer() {
+    return Boolean(window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
+  }
+
+  // Mobile-only subtle haptics (fails silently if not supported).
+  function subtleHapticTap(ms = 10) {
+    if (!isCoarsePointer()) return;
+    if (typeof navigator === "undefined" || typeof navigator.vibrate !== "function") return;
+    try {
+      navigator.vibrate(Math.max(1, Math.round(Number(ms) || 10)));
+    } catch {
+      // no-op
+    }
+  }
+
+  function escapeHTML(value) {
+    return String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
   function ensureModalRoot() {
     let root = document.getElementById("modalRoot");
     if (root) return root;
@@ -29,9 +53,12 @@
     return root;
   }
 
-  function showModal({ title, body, actions, dismissValue = "cancel", dismissible = true }) {
+  function showModal({ title, body, actions, dismissValue = "cancel", dismissible = true, kind = null }) {
     const root = ensureModalRoot();
     root.hidden = false;
+    if (typeof kind === "string" && kind) root.dataset.kind = kind;
+    else delete root.dataset.kind;
+    document.body.classList.toggle("is-info-modal-open", root.dataset.kind === "info");
 
     // Clear existing modal content but keep backdrop.
     const existing = root.querySelector(".modal");
@@ -78,6 +105,8 @@
     function close(value) {
       cleanup();
       root.hidden = true;
+      delete root.dataset.kind;
+      document.body.classList.remove("is-info-modal-open");
       modal.remove();
       return value;
     }
@@ -409,12 +438,14 @@
 
         const result = SleepApp.sleepTracker.saveCompletedSession(proposed);
         if (result.saved) {
+          subtleHapticTap(10);
           button.classList.add("did-stop");
           window.setTimeout(() => button.classList.remove("did-stop"), 350);
           renderHome();
         }
       } else {
-        // Safety check: if starting 3+ hours before scheduled bedtime, confirm.
+        // Always confirm on start (with an optional note).
+        // Safety check: if starting 3+ hours before scheduled bedtime, show a gentle heads-up.
         const store = SleepApp.storage;
         const hasSchedule = store.hasKey(store.KEYS.schedule);
         let shouldConfirm = false;
@@ -438,22 +469,51 @@
           }
         }
 
-        if (shouldConfirm) {
-          const choice = await showModal({
-            title: "Start sleeping now?",
-            body: `
-              <div>This is more than 3 hours before your scheduled bedtime (${bedtimeText}).</div>
-              <div class="muted" style="margin-top:10px">If this is intentional (early night, nap, travel), you can still log it.</div>
-            `,
-            actions: [
-              { label: "Cancel", value: "cancel", variant: "ghost" },
-              { label: "Start", value: "start", variant: "primary" },
-            ],
-          });
-          if (choice !== "start") return;
-        }
+        const wrap = document.createElement("div");
 
-        SleepApp.sleepTracker.startSleeping();
+        const intro = document.createElement("div");
+        intro.textContent = "Start sleeping now?";
+
+        const warning = document.createElement("div");
+        warning.className = "muted";
+        warning.style.marginTop = "10px";
+        warning.textContent = shouldConfirm
+          ? `This is more than 3 hours before your scheduled bedtime (${bedtimeText}). If this is intentional (early night, nap, travel), you can still log it.`
+          : "You can add an optional note. It will be saved to this session and shown in History.";
+
+        const noteField = document.createElement("div");
+        noteField.className = "field";
+        noteField.style.marginTop = "12px";
+
+        const noteInput = document.createElement("textarea");
+        noteInput.className = "input";
+        noteInput.placeholder = "Optional note";
+        noteInput.maxLength = 140;
+        noteInput.rows = 2;
+        noteInput.autocomplete = "off";
+        noteInput.autocapitalize = "sentences";
+        noteInput.spellcheck = true;
+        noteInput.setAttribute("aria-label", "Optional note");
+
+        noteField.append(noteInput);
+        wrap.append(intro, warning, noteField);
+
+        const choice = await showModal({
+          title: "Start Sleeping",
+          body: wrap,
+          actions: [
+            { label: "Cancel", value: { action: "cancel" }, variant: "ghost" },
+            {
+              label: "Start",
+              value: () => ({ action: "start", note: String(noteInput.value || "").trim() }),
+              variant: "primary",
+            },
+          ],
+        });
+        if (!choice || choice.action !== "start") return;
+
+        SleepApp.sleepTracker.startSleeping({ note: choice.note });
+        subtleHapticTap(10);
         button.classList.add("did-start");
         window.setTimeout(() => button.classList.remove("did-start"), 350);
         renderHome();
@@ -461,7 +521,19 @@
     });
   }
 
-  function renderAnalyticsPage(view) {
+  function normalizeAnalyticsMetric(value, fallback = "duration") {
+    if (value === "consistency") return "consistency";
+    if (value === "duration") return "duration";
+    return fallback === "consistency" ? "consistency" : "duration";
+  }
+
+  function getAnalyticsMetricForView(view, uiState) {
+    if (view === "weekly") return normalizeAnalyticsMetric(uiState?.analyticsWeeklyMetric, "consistency");
+    if (view === "monthly") return normalizeAnalyticsMetric(uiState?.analyticsMonthlyMetric, "duration");
+    return "duration";
+  }
+
+  function renderAnalyticsPage(view, metric) {
     const canvas = el("analyticsCanvas");
     const legend = el("analyticsLegend");
     const sessionsTitle = el("sessionsTitle");
@@ -478,8 +550,9 @@
     if (canvas) canvas.hidden = false;
     if (legend) legend.hidden = false;
 
-    if (canvas) SleepApp.graphs.renderAnalytics(canvas, view);
-    SleepApp.graphs.renderLegend(view, legend);
+    const safeMetric = normalizeAnalyticsMetric(metric, "duration");
+    if (canvas) SleepApp.graphs.renderAnalytics(canvas, view, safeMetric);
+    SleepApp.graphs.renderLegend(view, safeMetric, legend);
     SleepApp.graphs.renderSessionList(el("sessionList"), { limit: 20 });
   }
 
@@ -523,12 +596,15 @@
 
     const score = Number.isFinite(selected.score) ? Math.round(selected.score) : null;
     const scoreLabel = score === null ? "—" : score >= 80 ? "Great" : score >= 65 ? "Okay" : "Poor";
+    const note = typeof selected.note === "string" ? selected.note.trim() : "";
+    const noteHTML = note ? escapeHTML(note).replace(/\n/g, "<br>") : null;
 
     details.innerHTML = `
       <div class="kv__k">Date</div><div class="kv__v">${endKey}</div>
       <div class="kv__k">Start</div><div class="kv__v">${SleepApp.time.formatTimeFromISO(selected.start)} (${selected.start})</div>
       <div class="kv__k">End</div><div class="kv__v">${SleepApp.time.formatTimeFromISO(selected.end)} (${selected.end})</div>
       <div class="kv__k">Duration</div><div class="kv__v">${SleepApp.time.formatDuration(Number(selected.durationMs))}</div>
+      ${noteHTML ? `<div class="kv__k">Note</div><div class="kv__v" style="white-space:pre-wrap">${noteHTML}</div>` : ""}
       <div class="kv__k">Goal</div><div class="kv__v">${formatMinutesAsHM(goalMinutes)} (${diff >= 0 ? "+" : ""}${diff}m)</div>
       <div class="kv__k">Consistency</div><div class="kv__v">${consistency === null ? "—" : `${consistency}/100`}</div>
       <div class="kv__k">Score</div><div class="kv__v">${score === null ? "—" : `${score}/100`} • ${scoreLabel}</div>
@@ -550,6 +626,31 @@
 
     const segmented = document.querySelector(".segmented");
     if (!segmented) return;
+
+    const metricToggle = el("analyticsMetricToggle");
+    const metricInputs = metricToggle ? [...metricToggle.querySelectorAll('input[name="analyticsMetric"]')] : [];
+
+    function setMetric(nextMetric) {
+      const safe = normalizeAnalyticsMetric(nextMetric, view === "weekly" ? "consistency" : "duration");
+      const uiState = store.getUI();
+      if (view === "weekly") store.setUI({ ...uiState, analyticsWeeklyMetric: safe });
+      else if (view === "monthly") store.setUI({ ...uiState, analyticsMonthlyMetric: safe });
+      syncMetricToggle();
+      renderAnalyticsPage(view, safe);
+    }
+
+    function syncMetricToggle() {
+      if (!metricToggle) return;
+      const show = view === "weekly" || view === "monthly";
+      metricToggle.hidden = !show;
+      if (!show) return;
+
+      const uiState = store.getUI();
+      const metric = getAnalyticsMetricForView(view, uiState);
+      for (const input of metricInputs) {
+        input.checked = input.value === metric;
+      }
+    }
 
     const sessionList = el("sessionList");
     if (sessionList) {
@@ -684,7 +785,10 @@
       for (const btn of segmented.querySelectorAll("button[data-view]")) {
         btn.classList.toggle("is-active", btn.dataset.view === view);
       }
-      renderAnalyticsPage(view);
+
+      syncMetricToggle();
+      const metric = getAnalyticsMetricForView(view, store.getUI());
+      renderAnalyticsPage(view, metric);
     }
 
     segmented.addEventListener("click", (event) => {
@@ -693,6 +797,15 @@
       if (!target.matches("button[data-view]")) return;
       setView(target.dataset.view);
     });
+
+    if (metricToggle) {
+      metricToggle.addEventListener("change", (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLInputElement)) return;
+        if (target.name !== "analyticsMetric") return;
+        setMetric(target.value);
+      });
+    }
 
     setView(view);
   }
@@ -878,16 +991,100 @@
     const infoButton = el("infoButton");
     if (infoButton) {
       infoButton.addEventListener("click", () => {
+        const body = document.createElement("div");
+
+        const brand = document.createElement("div");
+        brand.className = "about-brand";
+        brand.innerHTML = `<span class="about-brand__name">Sleepoid</span> <span class="about-brand__version">v1.1</span>`;
+
+        const intro = document.createElement("div");
+        intro.className = "muted";
+        intro.style.marginTop = "10px";
+        intro.textContent = "Sleepoid is a calm, manual sleep tracker.";
+
+        const sectionA = document.createElement("div");
+        sectionA.style.marginTop = "14px";
+        sectionA.innerHTML = `
+          <div class="label">How consistency works</div>
+          <div style="height:6px"></div>
+          <div>Consistency measures how regular your sleep timing is across days.</div>
+          <div class="muted" style="margin-top:8px">
+            It uses your schedule as a reference and allows a tolerance window, so small variations don’t hurt much. The goal is a steady rhythm over
+            time — not perfection.
+          </div>
+        `;
+
+        const sectionB = document.createElement("div");
+        sectionB.style.marginTop = "14px";
+        sectionB.innerHTML = `
+          <div class="label">How sleep score works</div>
+          <div style="height:6px"></div>
+          <div>Your sleep score is a 0–100 summary of how that night compares to your goals.</div>
+          <div class="muted" style="margin-top:8px">
+            It considers duration vs your goal, timing consistency, and whether you’re building a steady streak. It’s meant as a gentle reference to help
+            you notice patterns.
+          </div>
+        `;
+
+        const sectionC = document.createElement("div");
+        sectionC.style.marginTop = "14px";
+        sectionC.innerHTML = `
+          <div class="label">General app information</div>
+          <div style="height:6px"></div>
+          <div>This is a manual tracker — you enter sleep by tapping Start/Stop.</div>
+          <div class="muted" style="margin-top:8px">
+            There are no sensors or wearables, and it works offline-first. All data is stored locally in your browser (no accounts, no cloud sync).
+          </div>
+        `;
+
+        const changelog = document.createElement("div");
+        changelog.className = "about-collapse";
+        changelog.style.marginTop = "16px";
+
+        const changelogBtn = document.createElement("button");
+        changelogBtn.type = "button";
+        changelogBtn.className = "about-collapse__btn";
+        changelogBtn.setAttribute("aria-expanded", "false");
+        changelogBtn.textContent = "Changelog";
+
+        const changelogContent = document.createElement("div");
+        changelogContent.id = `aboutChangelog-${Date.now().toString(36)}`;
+        changelogContent.className = "about-collapse__content";
+        changelogContent.setAttribute("aria-hidden", "true");
+        changelogBtn.setAttribute("aria-controls", changelogContent.id);
+
+        const changelogInner = document.createElement("div");
+        changelogInner.className = "about-collapse__inner";
+        changelogInner.innerHTML = `
+          <div class="label">Version 1.1 (Current)</div>
+          <div style="height:8px"></div>
+          <div>- Weekly/Monthly analytics metric toggle (duration vs consistency).</div>
+          <div>- Schedule dial drag improvements on mobile + subtle haptics.</div>
+          <div>- Optional note when starting sleep (shown in History).</div>
+          <div style="height:12px"></div>
+          <div class="label">Version 1.0</div>
+          <div style="height:8px"></div>
+          <div>- Manual sleep sessions with Start/Stop.</div>
+          <div>- Goals, schedules, and basic analytics.</div>
+          <div>- History with edit and delete.</div>
+        `;
+        changelogContent.append(changelogInner);
+
+        changelogBtn.addEventListener("click", () => {
+          const open = changelog.classList.toggle("is-open");
+          changelogBtn.setAttribute("aria-expanded", open ? "true" : "false");
+          changelogContent.setAttribute("aria-hidden", open ? "false" : "true");
+          // Simple expand/collapse with subtle animation; content is text-only.
+        });
+
+        changelog.append(changelogBtn, changelogContent);
+
+        body.append(brand, intro, sectionA, sectionB, sectionC, changelog);
+
         showModal({
           title: "About",
-          body: `
-            <div class="muted">Sleep is a calm, manual sleep tracker.</div>
-            <div style="height:10px"></div>
-            <div>- Tap Start/Stop to log sleep sessions.</div>
-            <div>- Set goals and schedules to improve scoring.</div>
-            <div style="height:10px"></div>
-            <div class="muted">All data is stored locally in your browser (no accounts, no cloud sync).</div>
-          `,
+          kind: "info",
+          body,
           actions: [{ label: "Close", value: "close", variant: "primary" }],
         });
       });
@@ -909,11 +1106,13 @@
       attachAnalyticsHandlers();
       window.addEventListener("sleepapp:sessionSaved", () => {
         const ui = SleepApp.storage.getUI();
-        renderAnalyticsPage(ui.analyticsView || "daily");
+        const view = ui.analyticsView || "daily";
+        renderAnalyticsPage(view, getAnalyticsMetricForView(view, ui));
       });
       window.addEventListener("sleepapp:sessionsChanged", () => {
         const ui = SleepApp.storage.getUI();
-        renderAnalyticsPage(ui.analyticsView || "daily");
+        const view = ui.analyticsView || "daily";
+        renderAnalyticsPage(view, getAnalyticsMetricForView(view, ui));
       });
       return;
     }

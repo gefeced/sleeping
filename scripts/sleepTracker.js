@@ -127,21 +127,15 @@
     const goalMinutes = getGoalMinutesForDate(endDate, goals);
 
     const durationMinutes = session.durationMinutes;
-    const ratio = goalMinutes > 0 ? durationMinutes / goalMinutes : 0;
 
-    let score = 100;
+    const minutesUnder = Math.max(0, goalMinutes - durationMinutes);
+    let durationScore = 50;
+    if (minutesUnder > 0 && minutesUnder <= 15) durationScore = 40;
+    else if (minutesUnder <= 30) durationScore = 30;
+    else if (minutesUnder <= 60) durationScore = 15;
+    else if (minutesUnder > 60) durationScore = 0;
 
-    // Duration penalty (dominant factor).
-    if (ratio < 1) {
-      const deficit = 1 - ratio;
-      score -= SleepApp.time.clamp(Math.round(deficit * 55), 0, 55);
-    } else {
-      // Small bonus for slightly exceeding goal; no bonus for massive oversleep.
-      const extra = SleepApp.time.clamp(ratio - 1, 0, 0.25);
-      score += Math.round(extra * 20);
-    }
-
-    // Timing consistency vs schedule.
+    let consistencyScore = 35;
     if (schedule) {
       const endDay = endDate.getDay();
       const applies = schedule.activeDays.includes(endDay);
@@ -152,23 +146,56 @@
         const wakeDiff = Math.abs(SleepApp.time.diffMinutesWrap(schedule.wakeMinutes, endMinutes));
         const avgDiff = (bedDiff + wakeDiff) / 2;
 
-        if (avgDiff <= toleranceMinutes) score += 5;
-        else {
-          // Up to 15 penalty when very far from schedule.
-          const t = SleepApp.time.clamp((avgDiff - toleranceMinutes) / 180, 0, 1);
-          score -= Math.round(t * 15);
-        }
+        if (avgDiff <= toleranceMinutes) consistencyScore = 35;
+        else if (avgDiff <= toleranceMinutes * 1.5) consistencyScore = 25;
+        else if (avgDiff <= toleranceMinutes * 2) consistencyScore = 15;
+        else if (avgDiff <= toleranceMinutes * 3) consistencyScore = 5;
+        else consistencyScore = 0;
       }
     }
 
-    // Variability penalty (last few sessions).
-    score -= computeVariabilityPenalty(context.recentSessions || []);
-
-    // Streak bonus.
+    const qualifiesForGoal = durationMinutes >= goalMinutes;
     const streakCount = Number(streak?.count ?? 0);
-    score += Math.round(SleepApp.time.clamp(streakCount * 1.5, 0, 10));
+    const streakBonus = qualifiesForGoal ? Math.min(streakCount * 2, 15) : 0;
 
-    // Gentle floor/ceiling.
+    const recentSessions = Array.isArray(context.recentSessions) ? context.recentSessions : [];
+    const recentCandidates = recentSessions
+      .filter((s) => s && Number.isFinite(Number(s.durationMinutes)))
+      .map((s) => ({
+        start: s.start,
+        end: s.end,
+        durationMinutes: Number(s.durationMinutes),
+      }));
+    const hasCurrent = recentCandidates.some((s) => s.start === session.start && s.end === session.end);
+    if (!hasCurrent) {
+      recentCandidates.push({ start: session.start, end: session.end, durationMinutes });
+    }
+
+    const recentOrdered = recentCandidates
+      .filter((s) => s.end && Number.isFinite(new Date(s.end).getTime()))
+      .sort((a, b) => new Date(a.end).getTime() - new Date(b.end).getTime());
+    const lastThree = recentOrdered.slice(-3);
+
+    let missedCount = 0;
+    let missedOver30 = false;
+    for (const recent of lastThree) {
+      const recentEnd = new Date(recent.end);
+      if (Number.isNaN(recentEnd.getTime())) continue;
+      const recentGoal = getGoalMinutesForDate(recentEnd, goals);
+      const deficit = recentGoal - recent.durationMinutes;
+      if (deficit > 0) {
+        missedCount += 1;
+        if (deficit > 30) missedOver30 = true;
+      }
+    }
+
+    let hardCap = 100;
+    if (missedOver30) hardCap = Math.min(hardCap, 85);
+    if (missedCount >= 2) hardCap = Math.min(hardCap, 75);
+    if (consistencyScore === 0) hardCap = Math.min(hardCap, 70);
+
+    const rawScore = durationScore + consistencyScore + streakBonus;
+    let score = Math.min(rawScore, hardCap);
     score = SleepApp.time.clamp(Math.round(score), 0, 100);
 
     let label = "—";
@@ -190,8 +217,7 @@
   function qualifiesForStreak(session, goals) {
     const endDate = new Date(session.end);
     const goalMinutes = getGoalMinutesForDate(endDate, goals);
-    const toleranceMinutes = Math.max(0, Number(goals?.toleranceMinutes ?? 45));
-    return session.durationMinutes >= Math.max(0, goalMinutes - toleranceMinutes);
+    return session.durationMinutes >= goalMinutes;
   }
 
   function updateStreakOnSession(session, goals) {
@@ -228,16 +254,19 @@
     return streak;
   }
 
-  function startSleeping() {
+  function startSleeping(options = {}) {
     const store = SleepApp.storage;
     const active = store.getActiveSession();
     if (active && active.start) return active;
 
     const now = new Date();
+    const noteRaw = typeof options === "string" ? options : options?.note;
+    const note = typeof noteRaw === "string" ? noteRaw.trim().slice(0, 140) : "";
     const nextActive = {
       id: uuid(),
       start: now.toISOString(),
     };
+    if (note) nextActive.note = note;
     store.setActiveSession(nextActive);
 
     window.dispatchEvent(new CustomEvent("sleepapp:activeSessionChanged", { detail: { activeSession: nextActive } }));
@@ -269,6 +298,7 @@
       end: end.toISOString(),
       durationMs,
       durationMinutes,
+      ...(typeof active.note === "string" && active.note.trim() ? { note: active.note.trim().slice(0, 140) } : {}),
     };
   }
 
@@ -347,7 +377,7 @@
           recentSessions: recentWindow.slice(-12),
         },
       );
-      recentWindow.push({ durationMinutes: s.durationMinutes });
+      recentWindow.push({ durationMinutes: s.durationMinutes, start: s.start, end: s.end });
       return { ...s, score: scoreResult.score };
     });
 
