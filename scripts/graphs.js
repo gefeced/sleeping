@@ -351,7 +351,10 @@
 
   function renderSessionList(container, options = {}) {
     if (!container) return;
-    const sessions = SleepApp.storage.getSessions().filter((s) => s?.start && s?.end);
+    const sessionsSource = Array.isArray(options.sessions)
+      ? options.sessions
+      : SleepApp.storage.getSessions().filter((s) => s?.start && s?.end);
+    const sessions = sessionsSource.filter((s) => s?.start && s?.end);
     const sortedAll = sessions.sort((a, b) => new Date(b.end).getTime() - new Date(a.end).getTime());
     const limit = options.limit === undefined ? 20 : options.limit;
     const sorted = limit === null ? sortedAll : sortedAll.slice(0, Math.max(0, limit));

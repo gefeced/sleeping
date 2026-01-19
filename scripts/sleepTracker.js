@@ -507,6 +507,9 @@
       score: null,
       scoreLabel: "—",
       scoreColor: "neutral",
+      overallScore: null,
+      overallScoreLabel: "—",
+      overallScoreColor: "neutral",
     };
 
     if (latest?.end && Number.isFinite(latest.score)) {
@@ -531,6 +534,16 @@
       summary.score = scoreResult.score;
       summary.scoreLabel = scoreResult.label;
       summary.scoreColor = scoreResult.color;
+    }
+
+    const scoredSessions = store.getSessions().filter((s) => s?.start && s?.end && Number.isFinite(s.score));
+    if (scoredSessions.length > 0) {
+      const avg = scoredSessions.reduce((acc, s) => acc + Number(s.score), 0) / scoredSessions.length;
+      const rounded = Math.round(avg);
+      const color = rounded >= 80 ? "good" : rounded >= 65 ? "okay" : "poor";
+      summary.overallScore = rounded;
+      summary.overallScoreLabel = rounded >= 80 ? "Great" : rounded >= 65 ? "Okay" : "Poor";
+      summary.overallScoreColor = color;
     }
 
     return summary;

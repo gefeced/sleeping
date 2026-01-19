@@ -170,51 +170,16 @@
     scoreValue.classList.add(`score--${color || "neutral"}`);
   }
 
-  function renderHomeEmptyStates() {
-    const card = el("homeEmptyStates");
-    const message = el("homeEmptyMessage");
-    const action = el("homeEmptyAction");
-    if (!card || !message || !action) return;
+  function setOverallScoreUI({ score, label, color }) {
+    const scoreValue = el("overallScoreValue");
+    const scoreLabel = el("overallScoreLabel");
+    if (!scoreValue || !scoreLabel) return;
 
-    const store = SleepApp.storage;
-    const hasSessions = store.hasKey(store.KEYS.sessions) && store.getSessions().some((s) => s?.start && s?.end);
-    const hasGoals = store.hasKey(store.KEYS.goals);
-    const hasSchedule = store.hasKey(store.KEYS.schedule);
+    scoreValue.textContent = score === null || score === undefined ? "--" : String(score);
+    scoreLabel.textContent = label || "—";
 
-    if (!hasSessions) {
-      card.hidden = false;
-      message.textContent = "Your sleep journey starts tonight.";
-      action.textContent = "Start Sleeping";
-      action.href = "#";
-      action.onclick = (e) => {
-        e.preventDefault();
-        const btn = el("sleepButton");
-        if (!btn) return;
-        btn.scrollIntoView({ behavior: "smooth", block: "center" });
-        window.setTimeout(() => btn.click(), 250);
-      };
-      return;
-    }
-
-    if (!hasGoals) {
-      card.hidden = false;
-      message.textContent = "Set a goal to track your progress.";
-      action.textContent = "Set Goal";
-      action.href = "goals.html";
-      action.onclick = null;
-      return;
-    }
-
-    if (!hasSchedule) {
-      card.hidden = false;
-      message.textContent = "Add a schedule to improve consistency scoring.";
-      action.textContent = "Set Schedule";
-      action.href = "schedule.html";
-      action.onclick = null;
-      return;
-    }
-
-    card.hidden = true;
+    scoreValue.classList.remove("score--good", "score--okay", "score--poor", "score--neutral");
+    scoreValue.classList.add(`score--${color || "neutral"}`);
   }
 
   function renderDayStrip() {
@@ -308,6 +273,11 @@
       label: summary.scoreLabel,
       color: summary.scoreColor,
     });
+    setOverallScoreUI({
+      score: summary.overallScore,
+      label: summary.overallScoreLabel,
+      color: summary.overallScoreColor,
+    });
 
     const streakCount = el("streakCount");
     if (streakCount) streakCount.textContent = String(summary.streak?.count ?? 0);
@@ -328,7 +298,6 @@
     const mini = el("miniGraph");
     if (mini) SleepApp.graphs.renderMiniGraph(mini);
 
-    renderHomeEmptyStates();
     renderDayStrip();
     renderLastNightVsGoal();
   }
@@ -528,9 +497,13 @@
   }
 
   function getAnalyticsMetricForView(view, uiState) {
-    if (view === "weekly") return normalizeAnalyticsMetric(uiState?.analyticsWeeklyMetric, "consistency");
-    if (view === "monthly") return normalizeAnalyticsMetric(uiState?.analyticsMonthlyMetric, "duration");
-    return "duration";
+    const metric =
+      view === "weekly"
+        ? normalizeAnalyticsMetric(uiState?.analyticsWeeklyMetric, "duration")
+        : view === "monthly"
+          ? normalizeAnalyticsMetric(uiState?.analyticsMonthlyMetric, "duration")
+          : "duration";
+    return metric === "consistency" ? "duration" : metric;
   }
 
   function renderAnalyticsPage(view, metric) {
@@ -540,12 +513,15 @@
     const sessionsSubtitle = el("sessionsSubtitle");
     const emptyState = el("analyticsEmptyState");
     const sessions = SleepApp.storage.getSessions().filter((s) => s?.start && s?.end);
+    const hasSessions = sessions.length > 0;
+    const sessionList = el("sessionList");
 
     SleepApp.graphs.renderAnalyticsSummary(el("analyticsSummary"));
 
     if (sessionsTitle) sessionsTitle.textContent = "Sessions";
     if (sessionsSubtitle) sessionsSubtitle.textContent = "Most recent sessions (tap to edit).";
-    if (emptyState) emptyState.hidden = true;
+    if (emptyState) emptyState.hidden = hasSessions;
+    if (sessionList) sessionList.hidden = !hasSessions;
 
     if (canvas) canvas.hidden = false;
     if (legend) legend.hidden = false;
@@ -553,7 +529,7 @@
     const safeMetric = normalizeAnalyticsMetric(metric, "duration");
     if (canvas) SleepApp.graphs.renderAnalytics(canvas, view, safeMetric);
     SleepApp.graphs.renderLegend(view, safeMetric, legend);
-    SleepApp.graphs.renderSessionList(el("sessionList"), { limit: 20 });
+    SleepApp.graphs.renderSessionList(sessionList, { limit: 20, sessions });
   }
 
   function renderHistoryPage(selectedId = null) {
@@ -631,7 +607,7 @@
     const metricInputs = metricToggle ? [...metricToggle.querySelectorAll('input[name="analyticsMetric"]')] : [];
 
     function setMetric(nextMetric) {
-      const safe = normalizeAnalyticsMetric(nextMetric, view === "weekly" ? "consistency" : "duration");
+      const safe = normalizeAnalyticsMetric(nextMetric, "duration");
       const uiState = store.getUI();
       if (view === "weekly") store.setUI({ ...uiState, analyticsWeeklyMetric: safe });
       else if (view === "monthly") store.setUI({ ...uiState, analyticsMonthlyMetric: safe });
@@ -995,7 +971,7 @@
 
         const brand = document.createElement("div");
         brand.className = "about-brand";
-        brand.innerHTML = `<span class="about-brand__name">Sleepoid</span> <span class="about-brand__version">v1.1</span>`;
+        brand.innerHTML = `<span class="about-brand__name">Sleepoid</span> <span class="about-brand__version">v1.2</span>`;
 
         const intro = document.createElement("div");
         intro.className = "muted";
@@ -1056,7 +1032,13 @@
         const changelogInner = document.createElement("div");
         changelogInner.className = "about-collapse__inner";
         changelogInner.innerHTML = `
-          <div class="label">Version 1.1 (Current)</div>
+          <div class="label">Version 1.2 (Current)</div>
+          <div style="height:8px"></div>
+          <div>- Overall sleep score on Home.</div>
+          <div>- Mobile schedule dial layout fix.</div>
+          <div>- Analytics UI cleanup for metrics.</div>
+          <div style="height:12px"></div>
+          <div class="label">Version 1.1</div>
           <div style="height:8px"></div>
           <div>- Weekly/Monthly analytics metric toggle (duration vs consistency).</div>
           <div>- Schedule dial drag improvements on mobile + subtle haptics.</div>

@@ -31,13 +31,6 @@
         </header>
 
         <main class="content">
-        <section id="homeEmptyStates" class="card empty" hidden>
-          <div id="homeEmptyMessage" class="empty__text">—</div>
-          <div class="empty__action">
-            <a id="homeEmptyAction" class="button button--primary" href="goals.html" role="button">Get started</a>
-          </div>
-        </section>
-
         <section class="card hero">
           <div class="hero__time">
             <div class="label">Current Time</div>
@@ -48,6 +41,11 @@
             <div class="stat">
               <div class="label">Today</div>
               <div id="todaySummary" class="value">No session yet</div>
+              <div class="stat__sub">
+                <span class="label">Overall</span>
+                <span id="overallScoreValue" class="score score--neutral">--</span>
+                <span id="overallScoreLabel" class="muted">—</span>
+              </div>
             </div>
             <div class="stat">
               <div class="label">Sleep Score</div>
