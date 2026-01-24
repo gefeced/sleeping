@@ -11,6 +11,24 @@
     return document.getElementById(id);
   }
 
+  function ensureSaveWarning() {
+    let node = el("saveWarning");
+    if (node) return node;
+    node = document.createElement("div");
+    node.id = "saveWarning";
+    node.className = "save-warning";
+    node.hidden = true;
+    node.textContent = "Sleep not saved yet";
+    document.body.append(node);
+    return node;
+  }
+
+  function setSaveWarningVisible(visible, message = null) {
+    const node = ensureSaveWarning();
+    if (message) node.textContent = message;
+    node.hidden = !visible;
+  }
+
   function isCoarsePointer() {
     return Boolean(window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
   }
@@ -411,6 +429,8 @@
           button.classList.add("did-stop");
           window.setTimeout(() => button.classList.remove("did-stop"), 350);
           renderHome();
+        } else {
+          setSaveWarningVisible(true, result.reason || "Sleep not saved yet");
         }
       } else {
         // Always confirm on start (with an optional note).
@@ -594,6 +614,56 @@
     if (backBtn) backBtn.hidden = false;
   }
 
+  function renderBestDayInsight() {
+    const bestDayValue = el("bestDayValue");
+    const bestDayDuration = el("bestDayDuration");
+    const bestDayScore = el("bestDayScore");
+    const empty = el("bestDayEmpty");
+    if (!bestDayValue || !bestDayDuration || !bestDayScore || !empty) return;
+
+    const sessions = SleepApp.storage.getSessions().filter((s) => s?.start && s?.end);
+    const groups = new Map();
+
+    for (const session of sessions) {
+      const times = SleepApp.sleepTracker.computeSessionTimes(session.start, session.end);
+      if (!times) continue;
+      const dayIndex = times.endDate.getDay();
+      const entry = groups.get(dayIndex) || { count: 0, totalMinutes: 0, totalScore: 0, scoreCount: 0 };
+      entry.count += 1;
+      entry.totalMinutes += times.durationMinutes;
+      if (Number.isFinite(Number(session.score))) {
+        entry.totalScore += Number(session.score);
+        entry.scoreCount += 1;
+      }
+      groups.set(dayIndex, entry);
+    }
+
+    const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    let best = null;
+
+    for (let i = 0; i < dayNames.length; i++) {
+      const entry = groups.get(i);
+      if (!entry || entry.count < 2) continue;
+      const avgMinutes = entry.totalMinutes / entry.count;
+      if (!best || avgMinutes > best.avgMinutes) {
+        best = { dayIndex: i, avgMinutes, scoreCount: entry.scoreCount, avgScore: entry.totalScore / Math.max(1, entry.scoreCount) };
+      }
+    }
+
+    if (!best) {
+      empty.hidden = false;
+      bestDayValue.textContent = "—";
+      bestDayDuration.textContent = "—";
+      bestDayScore.textContent = "—";
+      return;
+    }
+
+    empty.hidden = true;
+    bestDayValue.textContent = dayNames[best.dayIndex];
+    bestDayDuration.textContent = formatMinutesAsHM(best.avgMinutes);
+    bestDayScore.textContent = best.scoreCount ? `${Math.round(best.avgScore)}` : "—";
+  }
+
   function attachAnalyticsHandlers() {
     const store = SleepApp.storage;
     const ui = store.getUI();
@@ -734,20 +804,12 @@
 
         if (result.action === "save") {
           if (!result.startISO || !result.endISO) {
-            await showModal({
-              title: "Invalid time",
-              body: "Please enter valid start and end times.",
-              actions: [{ label: "Close", value: "close", variant: "primary" }],
-            });
+            setSaveWarningVisible(true, "Sleep not saved yet");
             return;
           }
           const update = SleepApp.sleepTracker.updateSessionTimes(sessionId, { startISO: result.startISO, endISO: result.endISO });
           if (!update.ok) {
-            await showModal({
-              title: "Couldn’t save",
-              body: update.reason || "Please check the times and try again.",
-              actions: [{ label: "Close", value: "close", variant: "primary" }],
-            });
+            setSaveWarningVisible(true, update.reason || "Sleep not saved yet");
           }
         }
       });
@@ -791,6 +853,9 @@
     const edit = el("historyEdit");
     const del = el("historyDelete");
     const back = el("historyBack");
+    const exportBtn = el("historyExport");
+    const importBtn = el("historyImport");
+    const importInput = el("historyImportInput");
     if (!list || !edit || !del) return;
 
     const url = new URL(window.location.href);
@@ -897,15 +962,14 @@
       });
 
       if (!result || result.action !== "save") return;
-      if (!result.startISO || !result.endISO) return;
+      if (!result.startISO || !result.endISO) {
+        setSaveWarningVisible(true, "Sleep not saved yet");
+        return;
+      }
 
       const update = SleepApp.sleepTracker.updateSessionTimes(selectedId, { startISO: result.startISO, endISO: result.endISO });
       if (!update.ok) {
-        await showModal({
-          title: "Couldn’t save",
-          body: update.reason || "Please check the times and try again.",
-          actions: [{ label: "Close", value: "close", variant: "primary" }],
-        });
+        setSaveWarningVisible(true, update.reason || "Sleep not saved yet");
       } else {
         renderHistoryPage(selectedId);
       }
@@ -930,6 +994,103 @@
       renderHistoryPage(null);
     });
 
+    if (exportBtn) {
+      exportBtn.addEventListener("click", () => {
+        const data = SleepApp.storage.getAllData();
+        const stamp = SleepApp.time.toDateKeyLocal(new Date());
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `sleepoid_backup_${stamp}.json`;
+        document.body.append(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+      });
+    }
+
+    if (importBtn && importInput) {
+      importBtn.addEventListener("click", () => {
+        importInput.value = "";
+        importInput.click();
+      });
+
+      importInput.addEventListener("change", async () => {
+        const file = importInput.files?.[0];
+        if (!file) return;
+
+        const text = await file.text();
+        let raw = null;
+        try {
+          raw = JSON.parse(text);
+        } catch {
+          raw = null;
+        }
+        if (!raw) {
+          await showModal({
+            title: "Invalid backup",
+            body: "That file could not be read as JSON.",
+            actions: [{ label: "Close", value: "close", variant: "primary" }],
+          });
+          return;
+        }
+
+        if (!raw || typeof raw !== "object" || !Array.isArray(raw.sessions)) {
+          await showModal({
+            title: "Invalid backup",
+            body: "That backup does not match the Sleepoid data format.",
+            actions: [{ label: "Close", value: "close", variant: "primary" }],
+          });
+          return;
+        }
+
+        const normalized = SleepApp.storage.migrateAppData(raw);
+        const validation = normalized ? SleepApp.storage.validateAppData(normalized) : { ok: false };
+        if (!validation.ok) {
+          await showModal({
+            title: "Invalid backup",
+            body: "That backup does not match the Sleepoid data format.",
+            actions: [{ label: "Close", value: "close", variant: "primary" }],
+          });
+          return;
+        }
+
+        const sessionValidation = SleepApp.sleepTracker.validateSessionList(normalized.sessions);
+        if (!sessionValidation.ok) {
+          await showModal({
+            title: "Backup rejected",
+            body: sessionValidation.reason || "Sessions overlap or contain invalid dates.",
+            actions: [{ label: "Close", value: "close", variant: "primary" }],
+          });
+          return;
+        }
+
+        const confirm = await showModal({
+          title: "Import backup?",
+          body: "Replace all data with this backup? This cannot be undone.",
+          actions: [
+            { label: "Cancel", value: false, variant: "ghost" },
+            { label: "Replace all data", value: true, variant: "primary" },
+          ],
+        });
+        if (!confirm) return;
+
+        const recalced = SleepApp.sleepTracker.recomputeStreakAndScores(sessionValidation.sessions);
+        const nextData = {
+          ...normalized,
+          sessions: recalced.sessions,
+          streak: recalced.streak,
+        };
+        SleepApp.storage.setAllData(nextData);
+        window.dispatchEvent(new CustomEvent("sleepapp:sessionsChanged", { detail: { sessions: nextData.sessions } }));
+        window.dispatchEvent(new CustomEvent("sleepapp:goalsChanged", { detail: { goals: nextData.goals } }));
+        window.dispatchEvent(new CustomEvent("sleepapp:scheduleChanged", { detail: { schedule: nextData.schedule } }));
+        window.dispatchEvent(new CustomEvent("sleepapp:activeSessionChanged", { detail: { activeSession: nextData.activeSession } }));
+        renderHistoryPage(null);
+      });
+    }
+
     // Initial render
     renderHistoryPage(selectedId);
 
@@ -943,6 +1104,17 @@
     if (!page) return;
 
     document.body.classList.add("is-ready");
+
+    ensureSaveWarning();
+    window.addEventListener("sleepapp:saveStatus", (event) => {
+      const detail = event.detail || {};
+      if (detail.ok) setSaveWarningVisible(false);
+      else setSaveWarningVisible(true, detail.message || "Sleep not saved yet");
+    });
+    window.addEventListener("sleepapp:dataWarning", (event) => {
+      const detail = event.detail || {};
+      setSaveWarningVisible(true, detail.message || "Sleep data could not be loaded.");
+    });
 
     // Lightweight data repair: ensure sessions have IDs, durations, and up-to-date scores.
     const store = SleepApp.storage;
@@ -1086,6 +1258,7 @@
 
     if (page === "analytics") {
       attachAnalyticsHandlers();
+      renderBestDayInsight();
       window.addEventListener("sleepapp:sessionSaved", () => {
         const ui = SleepApp.storage.getUI();
         const view = ui.analyticsView || "daily";

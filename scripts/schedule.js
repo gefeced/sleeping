@@ -175,7 +175,7 @@
       window.dispatchEvent(new CustomEvent("sleepapp:scheduleChanged", { detail: { schedule: scheduleState } }));
     }
 
-    function saveActiveScheduleFromUI() {
+    function saveActiveScheduleFromUI({ recompute = true } = {}) {
       const schedules = scheduleState.schedules || [];
       const idx = schedules.findIndex((s) => s.id === activeScheduleId);
       if (idx < 0) return;
@@ -191,7 +191,7 @@
       scheduleState.schedules = schedules;
       store.setSchedule(scheduleState);
       if (scheduleEmptyState) scheduleEmptyState.hidden = true;
-      recomputeSessionsAfterScheduleChange();
+      if (recompute) recomputeSessionsAfterScheduleChange();
       window.dispatchEvent(new CustomEvent("sleepapp:scheduleChanged", { detail: { schedule: scheduleState } }));
     }
 
@@ -308,6 +308,7 @@
       else activeDays = [...activeDays, day];
       renderDayChips(dayChips, activeDays);
       renderOverlapWarning();
+      saveActiveScheduleFromUI();
     });
 
     function minutesFromPointer(event) {
@@ -415,6 +416,7 @@
       } catch {
         // no-op
       }
+      saveActiveScheduleFromUI();
     }
 
     dial.addEventListener("pointerdown", onPointerDown);
@@ -427,12 +429,14 @@
       if (minutes === null) return;
       bedMinutes = minutes;
       renderDial();
+      saveActiveScheduleFromUI();
     });
     wakeInput.addEventListener("change", () => {
       const minutes = SleepApp.time.parseTimeToMinutes(wakeInput.value);
       if (minutes === null) return;
       wakeMinutes = minutes;
       renderDial();
+      saveActiveScheduleFromUI();
     });
 
     scheduleSelect.addEventListener("change", () => {
@@ -450,6 +454,10 @@
       scheduleState.schedules = schedules;
       renderScheduleSelect();
       scheduleSelect.value = activeScheduleId;
+      saveActiveScheduleFromUI({ recompute: false });
+    });
+    scheduleName.addEventListener("change", () => {
+      saveActiveScheduleFromUI({ recompute: false });
     });
 
     addScheduleBtn.addEventListener("click", () => {

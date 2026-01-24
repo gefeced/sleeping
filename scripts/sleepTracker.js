@@ -52,6 +52,76 @@
     return { startDate, endDate, durationMs, durationMinutes };
   }
 
+  function normalizeSession(session) {
+    if (!session?.start || !session?.end) return null;
+    const times = computeSessionTimes(session.start, session.end);
+    if (!times) return null;
+    return {
+      ...session,
+      start: times.startDate.toISOString(),
+      end: times.endDate.toISOString(),
+      durationMs: times.durationMs,
+      durationMinutes: times.durationMinutes,
+    };
+  }
+
+  function sessionsOverlap(a, b) {
+    const aStart = new Date(a.start).getTime();
+    const aEnd = new Date(a.end).getTime();
+    const bStart = new Date(b.start).getTime();
+    const bEnd = new Date(b.end).getTime();
+    if ([aStart, aEnd, bStart, bEnd].some((t) => Number.isNaN(t))) return false;
+    return aStart < bEnd && aEnd > bStart;
+  }
+
+  function validateSessionCandidate(session, sessions, ignoreId = null) {
+    const normalized = normalizeSession(session);
+    if (!normalized) return { ok: false, reason: "Duration must be greater than zero." };
+    const dateKey = getSessionDateKey(normalized);
+    if (!dateKey) return { ok: false, reason: "Session end time is invalid." };
+
+    for (const s of sessions || []) {
+      if (!s?.start || !s?.end) continue;
+      if (ignoreId && s.id === ignoreId) continue;
+      const existing = normalizeSession(s);
+      if (!existing) continue;
+      const existingKey = getSessionDateKey(existing);
+      if (existingKey && existingKey === dateKey) {
+        return { ok: false, reason: "A session already exists for that date." };
+      }
+      if (sessionsOverlap(normalized, existing)) {
+        return { ok: false, reason: "This session overlaps another session." };
+      }
+    }
+
+    return { ok: true, session: normalized };
+  }
+
+  function validateSessionList(sessions) {
+    if (!Array.isArray(sessions)) return { ok: false, reason: "Sessions must be a list." };
+    const normalized = [];
+    const dateKeys = new Set();
+
+    for (const session of sessions) {
+      const next = normalizeSession(session);
+      if (!next) return { ok: false, reason: "Invalid session time." };
+      const key = getSessionDateKey(next);
+      if (!key) return { ok: false, reason: "Invalid session date." };
+      if (dateKeys.has(key)) return { ok: false, reason: "Duplicate session dates are not allowed." };
+      dateKeys.add(key);
+      normalized.push(next);
+    }
+
+    const sorted = normalized.slice().sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+    for (let i = 1; i < sorted.length; i++) {
+      if (sessionsOverlap(sorted[i - 1], sorted[i])) {
+        return { ok: false, reason: "Sessions cannot overlap." };
+      }
+    }
+
+    return { ok: true, sessions: normalized };
+  }
+
   function normalizeSchedule(schedule) {
     if (!schedule) return null;
     const bedtimeMinutes = SleepApp.time.parseTimeToMinutes(schedule.bedtime);
@@ -399,15 +469,17 @@
   function saveCompletedSession(session) {
     const store = SleepApp.storage;
     const sessions = store.getSessions();
-    const nextSessions = [...sessions, session];
+    const validation = validateSessionCandidate(session, sessions);
+    if (!validation.ok) return { saved: false, reason: validation.reason };
+    const nextSessions = [...sessions, validation.session];
     const recalced = recomputeStreakAndScores(nextSessions);
     store.setSessions(recalced.sessions);
     store.setActiveSession(null);
 
-    window.dispatchEvent(new CustomEvent("sleepapp:sessionSaved", { detail: { session } }));
+    window.dispatchEvent(new CustomEvent("sleepapp:sessionSaved", { detail: { session: validation.session } }));
     window.dispatchEvent(new CustomEvent("sleepapp:sessionsChanged", { detail: { sessions: recalced.sessions } }));
     window.dispatchEvent(new CustomEvent("sleepapp:activeSessionChanged", { detail: { activeSession: null } }));
-    return { saved: true, session: { ...session }, streak: recalced.streak };
+    return { saved: true, session: { ...validation.session }, streak: recalced.streak };
   }
 
   function stopSleeping() {
@@ -425,13 +497,11 @@
     const next = { ...sessions[idx] };
     if (typeof startISO === "string") next.start = startISO;
     if (typeof endISO === "string") next.end = endISO;
-    const times = computeSessionTimes(next.start, next.end);
-    if (!times) return { ok: false, reason: "End time must be after start time." };
-    next.durationMs = times.durationMs;
-    next.durationMinutes = times.durationMinutes;
+    const validation = validateSessionCandidate(next, sessions, sessionId);
+    if (!validation.ok) return { ok: false, reason: validation.reason };
 
     const nextSessions = sessions.slice();
-    nextSessions[idx] = next;
+    nextSessions[idx] = validation.session;
     const recalced = recomputeStreakAndScores(nextSessions);
     store.setSessions(recalced.sessions);
 
@@ -562,6 +632,8 @@
     updateSessionTimes,
     deleteSession,
     recomputeStreakAndScores,
+    validateSessionCandidate,
+    validateSessionList,
     getLatestCompletedSession,
     getTodaysCompletedSession,
     getTodaysSummary,

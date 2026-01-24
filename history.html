@@ -46,6 +46,11 @@
               </div>
               <div class="pill pill--wide" id="historySummary">—</div>
             </div>
+            <div class="row row--left" style="margin-top:12px">
+              <button id="historyExport" class="button button--ghost" type="button">Export Sleep Data</button>
+              <button id="historyImport" class="button button--primary" type="button">Import Backup</button>
+              <input id="historyImportInput" type="file" accept="application/json,.json" hidden />
+            </div>
             <div id="historyList" class="session-list session-list--history" aria-label="All sleep sessions"></div>
           </section>
 
@@ -76,4 +81,3 @@
     <script src="scripts/ui.js"></script>
   </body>
 </html>
-

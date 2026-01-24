@@ -59,6 +59,32 @@
 	        </section>
 
         <section class="card">
+          <div class="row">
+            <div>
+              <h2 class="h2">Best Day of the Week</h2>
+              <div class="muted">Average duration wins (min 2 sessions per day).</div>
+            </div>
+          </div>
+          <div class="insight-grid" id="bestDayInsight">
+            <div class="insight-item">
+              <div class="insight-label">Best Day</div>
+              <div class="insight-value" id="bestDayValue">—</div>
+            </div>
+            <div class="insight-item">
+              <div class="insight-label">Average Sleep</div>
+              <div class="insight-value" id="bestDayDuration">—</div>
+            </div>
+            <div class="insight-item">
+              <div class="insight-label">Average Sleep Score</div>
+              <div class="insight-value" id="bestDayScore">—</div>
+            </div>
+          </div>
+          <div id="bestDayEmpty" class="muted" style="margin-top:10px" hidden>
+            Log at least 2 nights on the same weekday to see your best day.
+          </div>
+        </section>
+
+        <section class="card">
           <h2 id="sessionsTitle" class="h2">Sessions</h2>
           <div id="sessionsSubtitle" class="muted">Most recent sessions (tap to edit).</div>
           <div id="analyticsEmptyState" class="empty" hidden>

@@ -162,6 +162,29 @@ body.is-ready .content {
   transform: translateY(0);
 }
 
+.save-warning {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: rgba(255, 95, 110, 0.12);
+  border: 1px solid rgba(255, 95, 110, 0.3);
+  color: rgba(255, 220, 225, 0.95);
+  font-size: 12px;
+  z-index: 50;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(8px);
+}
+
+@media (max-width: 640px) {
+  .save-warning {
+    left: 16px;
+    right: 16px;
+    text-align: center;
+  }
+}
+
 .card {
   background: rgba(12, 18, 40, 0.42);
   backdrop-filter: blur(10px);
@@ -440,6 +463,31 @@ body.is-ready .content {
 .row--left {
   justify-content: flex-start;
   flex-wrap: wrap;
+}
+
+.insight-grid {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.insight-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(135, 175, 255, 0.12);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.insight-label {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.insight-value {
+  font-weight: 700;
 }
 
 .link {

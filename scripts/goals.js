@@ -85,7 +85,7 @@
     return `${hours}h ${minutes}m`;
   }
 
-  function renderBlocks(container, goals, state) {
+  function renderBlocks(container, goals, state, onChange) {
     container.innerHTML = "";
 
     for (const block of state.goalBlocks) {
@@ -180,12 +180,14 @@
         if (minutes === null) return;
         block.minutes = minutes;
         renderAll();
+        onChange?.();
       });
       mInput.addEventListener("change", () => {
         const minutes = minutesFromParts(hInput.value, mInput.value);
         if (minutes === null) return;
         block.minutes = minutes;
         renderAll();
+        onChange?.();
       });
 
       chips.addEventListener("click", (event) => {
@@ -197,6 +199,7 @@
         const days = Array.isArray(block.days) ? block.days : [];
         block.days = days.includes(day) ? days.filter((d) => d !== day) : [...days, day].sort();
         renderAll();
+        onChange?.();
       });
 
       del.addEventListener("click", async () => {
@@ -211,12 +214,13 @@
         if (!ok) return;
         state.goalBlocks = state.goalBlocks.filter((b) => b.id !== block.id);
         renderAll();
+        onChange?.();
       });
     }
 
     function renderAll() {
       // Re-render blocks + warnings and keep current state.
-      renderBlocks(container, goals, state);
+      renderBlocks(container, goals, state, onChange);
       const warning = el("goalBlocksWarning");
       if (warning) warning.textContent = computeOverlapWarning(state.goalBlocks);
       updateDefaultSummary(state.defaultGoalMinutes);
@@ -276,7 +280,7 @@
       state.goalBlocks = Array.isArray(goalsValue.goalBlocks) ? goalsValue.goalBlocks.map((b) => ({ ...b })) : [];
 
       el("goalBlocksWarning").textContent = computeOverlapWarning(state.goalBlocks);
-      renderBlocks(el("goalBlocks"), goalsValue, state);
+      renderBlocks(el("goalBlocks"), goalsValue, state, () => commitGoals({ announce: false }));
     }
 
     const state = { defaultGoalMinutes: goals.defaultGoalMinutes, goalBlocks: [] };
@@ -298,21 +302,39 @@
       return next;
     }
 
+    function commitGoals({ announce } = { announce: false }) {
+      const next = buildGoalsFromState();
+      store.setGoals(next);
+      goals = store.getGoals();
+      const recalced = SleepApp.sleepTracker?.recomputeStreakAndScores?.(store.getSessions());
+      if (recalced?.sessions) {
+        store.setSessions(recalced.sessions);
+        window.dispatchEvent(new CustomEvent("sleepapp:sessionsChanged", { detail: { sessions: recalced.sessions } }));
+      }
+      if (announce) setStatus("Saved.");
+      window.dispatchEvent(new CustomEvent("sleepapp:goalsChanged", { detail: { goals } }));
+    }
+
     el("defaultGoalHours").addEventListener("change", () => {
       const minutes = minutesFromParts(el("defaultGoalHours").value, el("defaultGoalMinutes").value);
       if (minutes === null) return;
       state.defaultGoalMinutes = minutes;
       updateDefaultSummary(minutes);
+      commitGoals({ announce: false });
     });
     el("defaultGoalMinutes").addEventListener("change", () => {
       const minutes = minutesFromParts(el("defaultGoalHours").value, el("defaultGoalMinutes").value);
       if (minutes === null) return;
       state.defaultGoalMinutes = minutes;
       updateDefaultSummary(minutes);
+      commitGoals({ announce: false });
     });
 
     el("toleranceRange").addEventListener("input", () => {
       el("toleranceValue").textContent = String(el("toleranceRange").value);
+    });
+    el("toleranceRange").addEventListener("change", () => {
+      commitGoals({ announce: false });
     });
 
     el("addGoalBlock").addEventListener("click", () => {
@@ -326,20 +348,12 @@
         { id: uuid(), minutes: state.defaultGoalMinutes, days: unusedDays.length ? unusedDays : [] },
       ];
       el("goalBlocksWarning").textContent = computeOverlapWarning(state.goalBlocks);
-      renderBlocks(el("goalBlocks"), goals, state);
+      renderBlocks(el("goalBlocks"), goals, state, () => commitGoals({ announce: false }));
+      commitGoals({ announce: false });
     });
 
     el("saveGoals").addEventListener("click", () => {
-      const next = buildGoalsFromState();
-      store.setGoals(next);
-      goals = store.getGoals();
-      const recalced = SleepApp.sleepTracker?.recomputeStreakAndScores?.(store.getSessions());
-      if (recalced?.sessions) {
-        store.setSessions(recalced.sessions);
-        window.dispatchEvent(new CustomEvent("sleepapp:sessionsChanged", { detail: { sessions: recalced.sessions } }));
-      }
-      setStatus("Saved.");
-      window.dispatchEvent(new CustomEvent("sleepapp:goalsChanged", { detail: { goals } }));
+      commitGoals({ announce: true });
     });
 
     el("resetGoals").addEventListener("click", async () => {
