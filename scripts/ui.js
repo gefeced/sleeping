@@ -994,21 +994,46 @@
       renderHistoryPage(null);
     });
 
-    if (exportBtn) {
-      exportBtn.addEventListener("click", () => {
-        const data = SleepApp.storage.getAllData();
-        const stamp = SleepApp.time.toDateKeyLocal(new Date());
-        const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = `sleepoid_backup_${stamp}.json`;
-        document.body.append(link);
-        link.click();
-        link.remove();
-        URL.revokeObjectURL(url);
-      });
+if (exportBtn) {
+  exportBtn.addEventListener("click", async () => {
+    const data = SleepApp.storage.getAllData();
+    const stamp = SleepApp.time.toDateKeyLocal(new Date());
+    const filename = `sleepoid_backup_${stamp}.json`;
+
+    const json = JSON.stringify(data, null, 2);
+    const blob = new Blob([json], { type: "application/json" });
+    const file = new File([blob], filename, { type: "application/json" });
+
+    // 🟢 BEST for iPhone/iPad — opens Share Sheet (Save to Files, AirDrop, etc.)
+    if (navigator.canShare && navigator.canShare({ files: [file] }) && navigator.share) {
+      try {
+        await navigator.share({
+          title: "Sleepoid Backup",
+          files: [file],
+        });
+        return; // Done if user saves
+      } catch (err) {
+        console.log("Share cancelled, falling back to download.");
+      }
     }
+
+    // 🔵 Fallback for desktop & other browsers
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+
+    link.click();
+
+    // ⚠️ CRITICAL: iOS needs time before we clean up the file
+    setTimeout(() => {
+      URL.revokeObjectURL(url);
+      link.remove();
+    }, 8000); // 8 seconds = safe delay for iOS
+  });
+}
+
 
     if (importBtn && importInput) {
       importBtn.addEventListener("click", () => {
