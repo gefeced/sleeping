@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#050814" />
+    <title>Sleep History</title>
+    <link rel="stylesheet" href="scripts/styles.css" />
+  </head>
+  <body data-page="history">
+    <div id="background-layer"></div>
+    <div id="app-container">
+      <div class="app">
+        <header class="topbar">
+          <div class="topbar__title">
+            <div class="appname">Sleep</div>
+            <div class="subtitle">History</div>
+          </div>
+          <div class="topbar__actions">
+            <nav class="nav" aria-label="Primary navigation">
+              <a class="nav__link" href="index.html">Home</a>
+              <a class="nav__link" href="goals.html">Goals</a>
+              <a class="nav__link" href="schedule.html">Schedule</a>
+              <a class="nav__link" href="analytics.html">Analytics</a>
+              <a class="nav__link is-active" href="history.html">History</a>
+            </nav>
+            <button id="infoButton" class="icon-button" type="button" aria-label="About this app" title="About">
+              i
+            </button>
+          </div>
+        </header>
+
+        <main class="content">
+          <section id="historyEmptyState" class="card empty" hidden>
+            <div class="empty__text">No sleep history yet.</div>
+            <div class="empty__action">
+              <a class="button button--primary" href="index.html" role="button">Record your first sleep</a>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="row">
+              <div>
+                <h1 class="h1">Sleep History</h1>
+                <div class="muted">Most recent first. Sessions are assigned to the wake-up date.</div>
+              </div>
+              <div class="pill pill--wide" id="historySummary">—</div>
+            </div>
+            <div class="row row--left" style="margin-top:12px">
+              <button id="historyExport" class="button button--ghost" type="button">Export Sleep Data</button>
+              <button id="historyImport" class="button button--primary" type="button">Import Backup</button>
+              <input id="historyImportInput" type="file" accept="application/json,.json" hidden />
+            </div>
+            <div id="historyList" class="session-list session-list--history" aria-label="All sleep sessions"></div>
+          </section>
+
+          <section class="card" id="historyDetailsCard">
+            <div class="row">
+              <div>
+                <h2 class="h2">Details</h2>
+                <div class="muted">Select a session to review.</div>
+              </div>
+              <button id="historyBack" class="button button--ghost" type="button" hidden>Back</button>
+            </div>
+
+            <div id="historyDetails" class="kv" style="margin-top:12px"></div>
+
+            <div class="row row--left" style="margin-top:14px">
+              <button id="historyEdit" class="button button--primary" type="button" disabled>Edit</button>
+              <button id="historyDelete" class="button button--ghost" type="button" disabled>Delete</button>
+            </div>
+          </section>
+        </main>
+      </div>
+    </div>
+
+    <script src="scripts/storage.js"></script>
+    <script src="scripts/time.js"></script>
+    <script src="scripts/sleepTracker.js"></script>
+    <script src="scripts/graphs.js"></script>
+    <script src="scripts/ui.js"></script>
+  </body>
+</html>
