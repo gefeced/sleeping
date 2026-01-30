@@ -8,7 +8,7 @@
 
   const SleepApp = (window.SleepApp = window.SleepApp || {});
 
-  const RELEASE_MARKER = "Sleepoid v1.3";
+  const RELEASE_MARKER = "Sleepoid v1.4";
   const PREFIX = "sleepTracker.v1.";
   const MAIN_KEY = "sleepoid_data";
   const BACKUP_KEY = "sleepoid_data_backup";

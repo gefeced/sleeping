@@ -526,7 +526,7 @@
     return metric === "consistency" ? "duration" : metric;
   }
 
-  function renderAnalyticsPage(view, metric) {
+  function renderAnalyticsPage(view, metric, graphStyle = "bar") {
     const canvas = el("analyticsCanvas");
     const legend = el("analyticsLegend");
     const sessionsTitle = el("sessionsTitle");
@@ -547,7 +547,7 @@
     if (legend) legend.hidden = false;
 
     const safeMetric = normalizeAnalyticsMetric(metric, "duration");
-    if (canvas) SleepApp.graphs.renderAnalytics(canvas, view, safeMetric);
+    if (canvas) SleepApp.graphs.renderAnalytics(canvas, view, safeMetric, graphStyle);
     SleepApp.graphs.renderLegend(view, safeMetric, legend);
     SleepApp.graphs.renderSessionList(sessionList, { limit: 20, sessions });
   }
@@ -664,37 +664,26 @@
     bestDayScore.textContent = best.scoreCount ? `${Math.round(best.avgScore)}` : "—";
   }
 
+  let analyticsGraphStyle = "bar";
+
   function attachAnalyticsHandlers() {
     const store = SleepApp.storage;
     const ui = store.getUI();
     let view = ui.analyticsView || "daily";
     if (!["daily", "weekly", "monthly"].includes(view)) view = "daily";
+    analyticsGraphStyle = analyticsGraphStyle === "line" ? "line" : "bar";
 
     const segmented = document.querySelector(".segmented");
     if (!segmented) return;
 
-    const metricToggle = el("analyticsMetricToggle");
-    const metricInputs = metricToggle ? [...metricToggle.querySelectorAll('input[name="analyticsMetric"]')] : [];
+    const graphToggle = el("graphStyleToggle");
+    const graphButtons = graphToggle ? [...graphToggle.querySelectorAll("button[data-style]")] : [];
 
-    function setMetric(nextMetric) {
-      const safe = normalizeAnalyticsMetric(nextMetric, "duration");
-      const uiState = store.getUI();
-      if (view === "weekly") store.setUI({ ...uiState, analyticsWeeklyMetric: safe });
-      else if (view === "monthly") store.setUI({ ...uiState, analyticsMonthlyMetric: safe });
-      syncMetricToggle();
-      renderAnalyticsPage(view, safe);
-    }
-
-    function syncMetricToggle() {
-      if (!metricToggle) return;
-      const show = view === "weekly" || view === "monthly";
-      metricToggle.hidden = !show;
-      if (!show) return;
-
-      const uiState = store.getUI();
-      const metric = getAnalyticsMetricForView(view, uiState);
-      for (const input of metricInputs) {
-        input.checked = input.value === metric;
+    function syncGraphToggle() {
+      if (!graphToggle) return;
+      graphToggle.hidden = false;
+      for (const btn of graphButtons) {
+        btn.classList.toggle("is-active", btn.dataset.style === analyticsGraphStyle);
       }
     }
 
@@ -824,9 +813,9 @@
         btn.classList.toggle("is-active", btn.dataset.view === view);
       }
 
-      syncMetricToggle();
+      syncGraphToggle();
       const metric = getAnalyticsMetricForView(view, store.getUI());
-      renderAnalyticsPage(view, metric);
+      renderAnalyticsPage(view, metric, analyticsGraphStyle);
     }
 
     segmented.addEventListener("click", (event) => {
@@ -836,12 +825,17 @@
       setView(target.dataset.view);
     });
 
-    if (metricToggle) {
-      metricToggle.addEventListener("change", (event) => {
+    if (graphToggle) {
+      graphToggle.addEventListener("click", (event) => {
         const target = event.target;
-        if (!(target instanceof HTMLInputElement)) return;
-        if (target.name !== "analyticsMetric") return;
-        setMetric(target.value);
+        if (!(target instanceof HTMLElement)) return;
+        const button = target.closest("button[data-style]");
+        if (!(button instanceof HTMLElement)) return;
+        const style = button.dataset.style === "line" ? "line" : "bar";
+        analyticsGraphStyle = style;
+        syncGraphToggle();
+        const metric = getAnalyticsMetricForView(view, store.getUI());
+        renderAnalyticsPage(view, metric, analyticsGraphStyle);
       });
     }
 
@@ -1161,10 +1155,8 @@ if (exportBtn) {
       }
     }
 
-    const infoButton = el("infoButton");
-    if (infoButton) {
-      infoButton.addEventListener("click", () => {
-        const body = document.createElement("div");
+    function openInfoModal() {
+      const body = document.createElement("div");
 
         const brand = document.createElement("div");
         brand.className = "about-brand";
@@ -1229,7 +1221,17 @@ if (exportBtn) {
         const changelogInner = document.createElement("div");
         changelogInner.className = "about-collapse__inner";
         changelogInner.innerHTML = `
-          <div class="label">Version 1.2 (Current)</div>
+          <div class="label">Version 1.4 (Current)</div>
+          <div style="height:8px"></div>
+          <div>- New Graph.</div>
+          <div>- More Options including settings menu.</div>
+          <div style="height:12px"></div>
+          <div class="label">Version 1.3</div>
+          <div style="height:8px"></div>
+          <div>- New Import/Export System.</div>
+          <div>- Best Day of the week.</div>
+          <div style="height:12px"></div>
+          <div class="label">Version 1.2</div>
           <div style="height:8px"></div>
           <div>- Overall sleep score on Home.</div>
           <div>- Mobile schedule dial layout fix.</div>
@@ -1260,14 +1262,65 @@ if (exportBtn) {
 
         body.append(brand, intro, sectionA, sectionB, sectionC, changelog);
 
-        showModal({
-          title: "About",
-          kind: "info",
-          body,
-          actions: [{ label: "Close", value: "close", variant: "primary" }],
-        });
+      showModal({
+        title: "About",
+        kind: "info",
+        body,
+        actions: [{ label: "Close", value: "close", variant: "primary" }],
       });
     }
+
+    function setupMenu() {
+      const menu = document.getElementById("menu");
+      if (!menu) return;
+      const toggle = document.getElementById("menuToggle");
+      const info = document.getElementById("menuInfo");
+      const settings = document.getElementById("menuSettings");
+      if (!toggle || !info || !settings) return;
+
+      let isOpen = false;
+
+      function setOpen(next) {
+        isOpen = next;
+        menu.classList.toggle("is-open", isOpen);
+        toggle.setAttribute("aria-expanded", isOpen ? "true" : "false");
+        menu.setAttribute("aria-expanded", isOpen ? "true" : "false");
+        const flyout = document.getElementById("menuFlyout");
+        if (flyout) flyout.setAttribute("aria-hidden", isOpen ? "false" : "true");
+      }
+
+      function closeMenu() {
+        if (!isOpen) return;
+        setOpen(false);
+        document.removeEventListener("click", onDocClick);
+      }
+
+      function onDocClick(event) {
+        if (menu.contains(event.target)) return;
+        closeMenu();
+      }
+
+      toggle.addEventListener("click", (event) => {
+        event.stopPropagation();
+        if (isOpen) closeMenu();
+        else {
+          setOpen(true);
+          document.addEventListener("click", onDocClick);
+        }
+      });
+
+      info.addEventListener("click", () => {
+        closeMenu();
+        openInfoModal();
+      });
+
+      settings.addEventListener("click", () => {
+        closeMenu();
+        window.location.href = "settings.html";
+      });
+    }
+
+    setupMenu();
 
     if (page === "home") {
       attachHomeHandlers();
@@ -1287,18 +1340,28 @@ if (exportBtn) {
       window.addEventListener("sleepapp:sessionSaved", () => {
         const ui = SleepApp.storage.getUI();
         const view = ui.analyticsView || "daily";
-        renderAnalyticsPage(view, getAnalyticsMetricForView(view, ui));
+        renderAnalyticsPage(view, getAnalyticsMetricForView(view, ui), analyticsGraphStyle);
       });
       window.addEventListener("sleepapp:sessionsChanged", () => {
         const ui = SleepApp.storage.getUI();
         const view = ui.analyticsView || "daily";
-        renderAnalyticsPage(view, getAnalyticsMetricForView(view, ui));
+        renderAnalyticsPage(view, getAnalyticsMetricForView(view, ui), analyticsGraphStyle);
       });
       return;
     }
 
     if (page === "history") {
       attachHistoryHandlers();
+    }
+
+    if (page === "settings") {
+      const back = el("settingsBack");
+      if (back) {
+        back.addEventListener("click", () => {
+          if (window.history.length > 1) window.history.back();
+          else window.location.href = "index.html";
+        });
+      }
     }
   }
 

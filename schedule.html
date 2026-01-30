@@ -24,9 +24,16 @@
               <a class="nav__link" href="analytics.html">Analytics</a>
               <a class="nav__link" href="history.html">History</a>
             </nav>
-            <button id="infoButton" class="icon-button" type="button" aria-label="About this app" title="About">
-              i
-            </button>
+            <div class="menu" id="menu">
+              <button id="menuToggle" class="icon-button menu-toggle" type="button" aria-label="Open menu" aria-expanded="false">
+                <span class="menu-toggle__icon menu-toggle__icon--open">☰</span>
+                <span class="menu-toggle__icon menu-toggle__icon--close">×</span>
+              </button>
+              <div class="menu-flyout" id="menuFlyout" aria-hidden="true">
+                <button id="menuInfo" class="button button--ghost menu-action" type="button">Info</button>
+                <button id="menuSettings" class="button button--primary menu-action" type="button">Settings</button>
+              </div>
+            </div>
           </div>
         </header>
 

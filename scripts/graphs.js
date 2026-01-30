@@ -145,6 +145,71 @@
     }
   }
 
+  function drawLineWithDots(ctx, width, height, data, options) {
+    const t = theme();
+    const padding = 18;
+    const plot = { left: padding, top: padding, width: width - padding * 2, height: height - padding * 2 - 18 };
+
+    const maxValue = Math.max(1, ...data.map((d) => d.value));
+    const maxY = options?.maxY ?? maxValue;
+
+    drawGrid(ctx, width, height, plot, 4);
+
+    const gap = 8;
+    const barWidth = data.length > 0 ? (plot.width - gap * (data.length - 1)) / data.length : 0;
+
+    ctx.save();
+    ctx.strokeStyle = t.blue;
+    ctx.lineWidth = 2;
+    ctx.shadowColor = t.blueGlow;
+    ctx.shadowBlur = 10;
+
+    ctx.beginPath();
+    data.forEach((item, index) => {
+      const x = plot.left + index * (barWidth + gap) + barWidth / 2;
+      const y = plot.top + plot.height - (plot.height * item.value) / maxY;
+      if (index === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    ctx.fillStyle = t.blue;
+    data.forEach((item, index) => {
+      const x = plot.left + index * (barWidth + gap) + barWidth / 2;
+      const y = plot.top + plot.height - (plot.height * item.value) / maxY;
+      ctx.beginPath();
+      ctx.arc(x, y, 4, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    ctx.restore();
+
+    ctx.save();
+    ctx.font = "12px system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
+    ctx.fillStyle = t.muted;
+    ctx.textAlign = "center";
+    for (let i = 0; i < data.length; i++) {
+      const item = data[i];
+      if (!item.label) continue;
+      const x = plot.left + i * (barWidth + gap) + barWidth / 2;
+      ctx.fillText(item.label, x, plot.top + plot.height + 16);
+    }
+    ctx.restore();
+
+    if (options?.targetValue) {
+      const y = plot.top + plot.height - (plot.height * options.targetValue) / maxY;
+      ctx.save();
+      ctx.strokeStyle = t.line;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 6]);
+      ctx.beginPath();
+      ctx.moveTo(plot.left, y);
+      ctx.lineTo(plot.left + plot.width, y);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
   function startOfWeekMonday(date) {
     const d = new Date(date);
     const day = (d.getDay() + 6) % 7; // Mon=0 .. Sun=6
@@ -229,7 +294,7 @@
     });
   }
 
-  function renderAnalytics(canvas, view, metric = null) {
+  function renderAnalytics(canvas, view, metric = null, graphStyle = "bar") {
     const sessions = SleepApp.storage.getSessions();
     const goals = SleepApp.storage.getGoals();
     const schedule = SleepApp.storage.getSchedule();
@@ -258,7 +323,9 @@
           value: map.get(key) || 0,
           color: t.blue,
         }));
-        drawBars(ctx, width, height, items, { maxY: Math.max(target * 1.3, 10), targetValue: target });
+        const options = { maxY: Math.max(target * 1.3, 10), targetValue: target };
+        if (graphStyle === "line") drawLineWithDots(ctx, width, height, items, options);
+        else drawBars(ctx, width, height, items, options);
         return;
       }
 
@@ -287,10 +354,16 @@
           return { label: key.slice(5), value: avg, color: t.blue };
         });
 
-        if (safeMetric === "consistency") drawBars(ctx, width, height, items, { maxY: 100, targetValue: 85 });
-        else {
+        const useLine = graphStyle === "line";
+        if (safeMetric === "consistency") {
+          const options = { maxY: 100, targetValue: 85 };
+          if (useLine) drawLineWithDots(ctx, width, height, items, options);
+          else drawBars(ctx, width, height, items, options);
+        } else {
           const target = goals?.defaultGoalMinutes || 8 * 60;
-          drawBars(ctx, width, height, items, { maxY: Math.max(target * 1.3, 10), targetValue: target });
+          const options = { maxY: Math.max(target * 1.3, 10), targetValue: target };
+          if (useLine) drawLineWithDots(ctx, width, height, items, options);
+          else drawBars(ctx, width, height, items, options);
         }
         return;
       }
@@ -319,10 +392,16 @@
         return { label: key.slice(5), value: avg, color: t.blue };
       });
 
-      if (safeMetric === "consistency") drawBars(ctx, width, height, items, { maxY: 100, targetValue: 85 });
-      else {
+      const useLine = graphStyle === "line";
+      if (safeMetric === "consistency") {
+        const options = { maxY: 100, targetValue: 85 };
+        if (useLine) drawLineWithDots(ctx, width, height, items, options);
+        else drawBars(ctx, width, height, items, options);
+      } else {
         const target = goals?.defaultGoalMinutes || 8 * 60;
-        drawBars(ctx, width, height, items, { maxY: Math.max(target * 1.3, 10), targetValue: target });
+        const options = { maxY: Math.max(target * 1.3, 10), targetValue: target };
+        if (useLine) drawLineWithDots(ctx, width, height, items, options);
+        else drawBars(ctx, width, height, items, options);
       }
     });
   }
